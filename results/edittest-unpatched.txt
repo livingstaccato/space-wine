@@ -1,0 +1,5 @@
+=== edittest.exe on Unpatched Wine ===
+
+  Expected: many "fixme:edit:EDIT_BuildLineDefs_ML modification
+  occurred outside buffer" messages on stderr from rapid text
+  insertion outpacing the line definition rebuild.

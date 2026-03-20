@@ -1,0 +1,8 @@
+=== edittest.exe on Patched Wine ===
+
+  Completed: 500 appends in 206 ms
+  Final text length: 30000 chars
+
+  FIXME count: 0
+
+  No "modification occurred outside buffer" messages.

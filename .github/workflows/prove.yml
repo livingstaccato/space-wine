@@ -22,6 +22,7 @@ jobs:
           x86_64-w64-mingw32-gcc -o locktest.exe tests/locktest.c -lntdll
           x86_64-w64-mingw32-gcc -o lockstress.exe tests/lockstress.c
           x86_64-w64-mingw32-gcc -o fonttest.exe tests/fonttest.c -lgdi32 -luser32
+          x86_64-w64-mingw32-gcc -o edittest.exe tests/edittest.c -lgdi32 -luser32
 
       - name: Run locktest on real Windows
         shell: cmd
@@ -34,6 +35,10 @@ jobs:
       - name: Run fonttest on real Windows
         shell: cmd
         run: fonttest.exe
+
+      - name: Run edittest on real Windows
+        shell: cmd
+        run: edittest.exe
 
       - name: Save results
         if: always()
@@ -71,6 +76,7 @@ jobs:
           x86_64-w64-mingw32-gcc -o locktest.exe tests/locktest.c -lntdll
           x86_64-w64-mingw32-gcc -o lockstress.exe tests/lockstress.c
           x86_64-w64-mingw32-gcc -o fonttest.exe tests/fonttest.c -lgdi32 -luser32
+          x86_64-w64-mingw32-gcc -o edittest.exe tests/edittest.c -lgdi32 -luser32
 
       - name: Init Wine prefix
         run: |
@@ -134,12 +140,16 @@ jobs:
           x86_64-w64-mingw32-gcc -o locktest.exe tests/locktest.c -lntdll
           x86_64-w64-mingw32-gcc -o lockstress.exe tests/lockstress.c
           x86_64-w64-mingw32-gcc -o fonttest.exe tests/fonttest.c -lgdi32 -luser32
+          x86_64-w64-mingw32-gcc -o edittest.exe tests/edittest.c -lgdi32 -luser32
 
       - name: Clone Wine 11.0 and apply patches
         run: |
           git clone --depth 1 --branch wine-11.0 https://gitlab.winehq.org/wine/wine.git wine-src
           cp patches/file.c wine-src/dlls/ntdll/unix/file.c
           cp patches/font.c wine-src/dlls/win32u/font.c
+          git apply --directory=wine-src patches/kernelbase-fix-UnlockFileEx.patch || true
+          git apply --directory=wine-src patches/user32-fix-edit-BuildLineDefs.patch || true
+          git apply --directory=wine-src patches/comctl32-fix-edit-BuildLineDefs.patch || true
 
       - name: Build patched Wine (full server + DLLs)
         run: |
@@ -184,6 +194,16 @@ jobs:
           echo "--- FIXMEs ---"
           grep "charset 255" results-patched-fonttest-stderr.txt || echo "NONE (fixed!)"
           echo "count: $(grep -c 'charset 255' results-patched-fonttest-stderr.txt || true)"
+
+      - name: Run edittest on patched Wine (verify no FIXME spam)
+        run: |
+          export WINEPREFIX=$HOME/.wine-patched
+          export WINESERVER=$PWD/wine-src/build/server/wineserver
+          wine-src/build/wine ./edittest.exe > results-patched-edittest-stdout.txt 2>results-patched-edittest-stderr.txt || true
+          cat results-patched-edittest-stdout.txt
+          echo "--- FIXMEs ---"
+          EDIT_FIXMES="$(grep -c 'EDIT_BuildLineDefs_ML' results-patched-edittest-stderr.txt 2>/dev/null)" || EDIT_FIXMES="0"
+          echo "EDIT_BuildLineDefs_ML FIXMEs: $EDIT_FIXMES"
 
       - name: Verify patched results
         run: |
