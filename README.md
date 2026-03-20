@@ -102,23 +102,29 @@ Affects TWGS and any DOS-era BBS/terminal application running under Wine.
 
 ```
 original/
-  file.c              # Wine 11.0 unpatched ntdll/unix/file.c (7839 lines)
+  file.c              # Wine 11.0 unpatched ntdll/unix/file.c
 
 patches/
   file.c              # Patched ntdll/unix/file.c
+  font.c              # Patched win32u/font.c (OEM_CHARSET fix)
   ntdll-fix-NtLockFile-FIXMEs.patch    # git diff for ntdll changes
-  kernel32-tests-expand-lockfile.patch  # git diff for test additions
+  win32u-fix-OEM_CHARSET.patch         # git diff for font changes
+  kernelbase-fix-UnlockFileEx.patch    # git diff for UnlockFileEx overlapped I/O
+  kernel32-tests-expand-lockfile.patch # git diff for test additions
 
 tests/
-  locktest.c           # 53-check verification tool (unit tests)
+  locktest.c           # 51-check verification tool (unit tests)
   lockstress.c         # Multi-threaded contention stress test (hang reproducer)
+  fonttest.c           # OEM_CHARSET font matching test
   kernel32_file_test.c # Full Wine kernel32 test file with expanded lock tests
 
 results/
   locktest-unpatched.txt   # 7 passed, 33 failed
-  locktest-patched.txt     # 53 passed, 0 failed
-  lockstress-unpatched.txt # HANG DETECTED after 168/200 operations
-  lockstress-patched.txt   # 200/200 in 12ms
+  locktest-patched.txt     # 51 passed, 0 failed
+  lockstress-unpatched.txt # HANG DETECTED
+  lockstress-patched.txt   # 200/200 in ~10ms
+  fonttest-unpatched.txt   # 4 charset 255 FIXMEs
+  fonttest-patched.txt     # 0 FIXMEs
   twgs-unpatched.txt       # Ports closed (hung)
   twgs-patched.txt         # Ports open (working)
 
