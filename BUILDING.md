@@ -57,7 +57,7 @@ $CC -arch x86_64 -dynamiclib -o /tmp/freetype-x86/lib/libfreetype.6.dylib \
 ## Step 2: Configure Wine
 
 ```bash
-cd uwarp-space/wine
+cd space-wine/wine
 mkdir build64-x86 && cd build64-x86
 
 # Symlink i686 mingw tools (arm64 binaries, work under Rosetta)
@@ -126,14 +126,16 @@ DYLD_LIBRARY_PATH=/opt/wine/lib WINEPREFIX=~/.wine \
 
 ```bash
 # Compile (one-time)
-x86_64-w64-mingw32-gcc -o locktest.exe wine/tools/locktest.c -lntdll
-x86_64-w64-mingw32-gcc -o lockstress.exe wine/tools/lockstress.c
-x86_64-w64-mingw32-gcc -o fonttest.exe wine/tools/fonttest.c -lgdi32 -luser32
+x86_64-w64-mingw32-gcc -o locktest.exe tests/locktest.c -lntdll
+x86_64-w64-mingw32-gcc -o lockstress.exe tests/lockstress.c
+x86_64-w64-mingw32-gcc -o fonttest.exe tests/fonttest.c -lgdi32 -luser32
+x86_64-w64-mingw32-gcc -o edittest.exe tests/edittest.c -lgdi32 -luser32
 
 # Run
-DYLD_LIBRARY_PATH=/opt/wine/lib wine locktest.exe -v    # 51 passed, 0 failed
+DYLD_LIBRARY_PATH=/opt/wine/lib wine locktest.exe -v    # all passed, 0 failed
 DYLD_LIBRARY_PATH=/opt/wine/lib wine lockstress.exe     # 200/200, 0 hangs
-DYLD_LIBRARY_PATH=/opt/wine/lib wine fonttest.exe       # 11 passed, 0 failed
+DYLD_LIBRARY_PATH=/opt/wine/lib wine fonttest.exe       # 0 FIXMEs
+DYLD_LIBRARY_PATH=/opt/wine/lib wine edittest.exe       # edit control
 ```
 
 ## What Each Piece Does
@@ -149,10 +151,11 @@ DYLD_LIBRARY_PATH=/opt/wine/lib wine fonttest.exe       # 11 passed, 0 failed
 
 ## Patches in This Build
 
-All patches are in the wine submodule source tree (`wine-11.0-patched` branch):
+Apply from the `patches/` directory (all are `git apply` compatible):
 
-1. **kernelbase: UnlockFileEx overlapped I/O** (9aecf2de29d)
-2. **ntdll: Rosetta 2 WoW64 compatibility** (b4d89e3d324)
-3. **ntdll: IOCP completion on lock success** (a5bb5729af4)
-4. **ntdll: Fix NtLockFile/NtUnlockFile FIXMEs** (8211cf4312f)
-5. **win32u: OEM_CHARSET font matching** (1bd6ed35acc)
+1. `ntdll-fix-NtLockFile-FIXMEs.patch` — NtLockFile/NtUnlockFile parameter handling + IOCP completion
+2. `kernelbase-fix-UnlockFileEx.patch` — UnlockFileEx overlapped I/O support
+3. `win32u-fix-OEM_CHARSET.patch` — OEM_CHARSET (255) font matching
+4. `user32-fix-edit-BuildLineDefs.patch` — Edit control stability under rapid updates
+5. `comctl32-fix-edit-BuildLineDefs.patch` — Same edit control fix for comctl32_v6
+6. `kernel32-tests-expand-lockfile.patch` — Expanded lock tests for Wine test suite

@@ -745,6 +745,225 @@ static void test_edge_cases(HANDLE file)
     }
 }
 
+/* ================================================================
+ * Test group 8: UnlockFileEx with overlapped I/O
+ * ================================================================ */
+static void test_unlock_overlapped(HANDLE file)
+{
+    HANDLE file2, event, port;
+    OVERLAPPED ov;
+    ULONG_PTR key_out;
+    DWORD bytes;
+    LPOVERLAPPED ov_out;
+    BOOL ret;
+
+    section("UnlockFileEx overlapped I/O");
+
+    /* 8a: UnlockFileEx with overlapped struct + event signaling */
+    file2 = open_second_handle(FILE_FLAG_OVERLAPPED);
+    if (file2 == INVALID_HANDLE_VALUE) {
+        check("open overlapped handle", 0, "err=%lu", GetLastError());
+        return;
+    }
+
+    event = CreateEventA(NULL, TRUE, FALSE, NULL);
+
+    memset(&ov, 0, sizeof(ov));
+    ov.Offset = 2000;
+    ov.hEvent = event;
+    ret = LockFileEx(file2, LOCKFILE_EXCLUSIVE_LOCK, 0, 100, 0, &ov);
+    check("lock for unlock-event test", ret, "err=%lu", GetLastError());
+
+    if (ret) {
+        ResetEvent(event);
+        memset(&ov, 0, sizeof(ov));
+        ov.Offset = 2000;
+        ov.hEvent = event;
+        ret = UnlockFileEx(file2, 0, 100, 0, &ov);
+        check("UnlockFileEx with overlapped succeeds", ret,
+              "err=%lu", GetLastError());
+        if (ret) {
+            DWORD wait = WaitForSingleObject(event, 1000);
+            check("event signaled after UnlockFileEx",
+                  wait == WAIT_OBJECT_0,
+                  "wait=%lu", wait);
+        }
+    }
+
+    CloseHandle(event);
+    CloseHandle(file2);
+
+    /* 8b: UnlockFileEx with event low-bit set (IOCP notification skip flag) */
+    file2 = open_second_handle(FILE_FLAG_OVERLAPPED);
+    if (file2 == INVALID_HANDLE_VALUE) {
+        check("open overlapped handle (8b)", 0, "err=%lu", GetLastError());
+        return;
+    }
+
+    port = CreateIoCompletionPort(file2, NULL, 0xBBBB, 1);
+    event = CreateEventA(NULL, TRUE, FALSE, NULL);
+
+    memset(&ov, 0, sizeof(ov));
+    ov.Offset = 2100;
+    ov.hEvent = event;
+    ret = LockFileEx(file2, LOCKFILE_EXCLUSIVE_LOCK, 0, 100, 0, &ov);
+    check("lock for low-bit event test", ret, "err=%lu", GetLastError());
+
+    if (ret) {
+        /* Drain IOCP completion from the lock */
+        GetQueuedCompletionStatus(port, &bytes, &key_out, &ov_out, 0);
+
+        ResetEvent(event);
+        memset(&ov, 0, sizeof(ov));
+        ov.Offset = 2100;
+        ov.hEvent = (HANDLE)((ULONG_PTR)event | 1);
+        ret = UnlockFileEx(file2, 0, 100, 0, &ov);
+        check("UnlockFileEx with low-bit event succeeds", ret,
+              "err=%lu", GetLastError());
+
+        if (ret) {
+            ov_out = NULL;
+            ret = GetQueuedCompletionStatus(port, &bytes, &key_out, &ov_out, 0);
+            check("IOCP skipped with low-bit event on unlock",
+                  !ret && GetLastError() == WAIT_TIMEOUT, NULL);
+        }
+    }
+
+    CloseHandle(event);
+    CloseHandle(port);
+    CloseHandle(file2);
+
+    /* 8c: UnlockFileEx on overlapped handle with IOCP (completion posted) */
+    file2 = open_second_handle(FILE_FLAG_OVERLAPPED);
+    if (file2 == INVALID_HANDLE_VALUE) {
+        check("open overlapped handle (8c)", 0, "err=%lu", GetLastError());
+        return;
+    }
+
+    port = CreateIoCompletionPort(file2, NULL, 0xCCCC, 1);
+    event = CreateEventA(NULL, TRUE, FALSE, NULL);
+
+    memset(&ov, 0, sizeof(ov));
+    ov.Offset = 2200;
+    ov.hEvent = event;
+    ret = LockFileEx(file2, LOCKFILE_EXCLUSIVE_LOCK, 0, 150, 0, &ov);
+    check("lock for IOCP unlock test", ret, "err=%lu", GetLastError());
+
+    if (ret) {
+        /* Drain IOCP completion from the lock */
+        GetQueuedCompletionStatus(port, &bytes, &key_out, &ov_out, 0);
+
+        memset(&ov, 0, sizeof(ov));
+        ov.Offset = 2200;
+        ret = UnlockFileEx(file2, 0, 150, 0, &ov);
+        check("UnlockFileEx with IOCP succeeds", ret,
+              "err=%lu", GetLastError());
+
+        if (ret) {
+            ov_out = NULL;
+            key_out = 0;
+            bytes = 0xdeadbeef;
+            ret = GetQueuedCompletionStatus(port, &bytes, &key_out, &ov_out, 2000);
+            check("IOCP completion posted for unlock", ret != 0,
+                  ret ? NULL : "err=%lu", GetLastError());
+            if (ret) {
+                check("IOCP unlock key matches",
+                      key_out == 0xCCCC, "got 0x%lX", (unsigned long)key_out);
+                check("IOCP unlock overlapped matches",
+                      ov_out == &ov, "got %p", ov_out);
+            }
+        }
+    }
+
+    CloseHandle(event);
+    CloseHandle(port);
+    CloseHandle(file2);
+
+    /* 8d: UnlockFileEx uses offset from OVERLAPPED struct */
+    file2 = open_second_handle(FILE_FLAG_OVERLAPPED);
+    if (file2 == INVALID_HANDLE_VALUE) {
+        check("open overlapped handle (8d)", 0, "err=%lu", GetLastError());
+        return;
+    }
+
+    event = CreateEventA(NULL, TRUE, FALSE, NULL);
+
+    /* Lock two adjacent ranges */
+    memset(&ov, 0, sizeof(ov));
+    ov.Offset = 2400;
+    ov.hEvent = event;
+    ret = LockFileEx(file2, LOCKFILE_EXCLUSIVE_LOCK, 0, 50, 0, &ov);
+    check("lock range [2400,2450)", ret, "err=%lu", GetLastError());
+
+    if (ret) {
+        OVERLAPPED ov2 = {0};
+        ov2.Offset = 2450;
+        ov2.hEvent = event;
+        ResetEvent(event);
+        ret = LockFileEx(file2, LOCKFILE_EXCLUSIVE_LOCK, 0, 50, 0, &ov2);
+        check("lock range [2450,2500)", ret, "err=%lu", GetLastError());
+
+        if (ret) {
+            /* Unlock only the first range using offset from OVERLAPPED */
+            OVERLAPPED ov_unlock = {0};
+            ov_unlock.Offset = 2400;
+            ov_unlock.hEvent = event;
+            ResetEvent(event);
+            ret = UnlockFileEx(file2, 0, 50, 0, &ov_unlock);
+            check("UnlockFileEx with offset 2400 succeeds", ret,
+                  "err=%lu", GetLastError());
+
+            /* Verify the second range is still locked by trying from another handle */
+            if (ret) {
+                HANDLE file3 = open_second_handle(FILE_FLAG_OVERLAPPED);
+                if (file3 != INVALID_HANDLE_VALUE) {
+                    OVERLAPPED ov_try = {0};
+                    HANDLE ev3 = CreateEventA(NULL, TRUE, FALSE, NULL);
+                    BOOL lock_ret;
+
+                    /* First range should be unlocked — lock should succeed */
+                    ov_try.Offset = 2400;
+                    ov_try.hEvent = ev3;
+                    lock_ret = LockFileEx(file3, LOCKFILE_EXCLUSIVE_LOCK |
+                                          LOCKFILE_FAIL_IMMEDIATELY, 0, 50, 0, &ov_try);
+                    check("re-lock [2400,2450) succeeds (was unlocked)",
+                          lock_ret, "err=%lu", GetLastError());
+                    if (lock_ret) {
+                        OVERLAPPED ov_tmp = {0};
+                        ov_tmp.Offset = 2400;
+                        UnlockFileEx(file3, 0, 50, 0, &ov_tmp);
+                    }
+
+                    /* Second range should still be locked — lock should fail */
+                    memset(&ov_try, 0, sizeof(ov_try));
+                    ov_try.Offset = 2450;
+                    ov_try.hEvent = ev3;
+                    ResetEvent(ev3);
+                    lock_ret = LockFileEx(file3, LOCKFILE_EXCLUSIVE_LOCK |
+                                          LOCKFILE_FAIL_IMMEDIATELY, 0, 50, 0, &ov_try);
+                    check("lock [2450,2500) fails (still locked)",
+                          !lock_ret, "unexpected success");
+
+                    CloseHandle(ev3);
+                    CloseHandle(file3);
+                }
+            }
+
+            /* Clean up second range */
+            ov2.Offset = 2450;
+            UnlockFileEx(file2, 0, 50, 0, &ov2);
+        } else {
+            /* Clean up first range if second lock failed */
+            memset(&ov, 0, sizeof(ov));
+            ov.Offset = 2400;
+            UnlockFileEx(file2, 0, 50, 0, &ov);
+        }
+    }
+
+    CloseHandle(event);
+    CloseHandle(file2);
+}
+
 /* ================================================================ */
 
 int main(int argc, char **argv)
@@ -789,6 +1008,7 @@ int main(int argc, char **argv)
     test_shared_exclusive(file);
     test_uncontested_iocp(file);
     test_edge_cases(file);
+    test_unlock_overlapped(file);
 
     printf("\n  ----------------------------------------------------------\n");
     printf("  Results: %d passed, %d failed, %d total\n",

@@ -101,33 +101,23 @@ Affects TWGS and any DOS-era BBS/terminal application running under Wine.
 ## Repository Structure
 
 ```
-original/
-  file.c              # Wine 11.0 unpatched ntdll/unix/file.c
-
-patches/
-  file.c              # Patched ntdll/unix/file.c
-  font.c              # Patched win32u/font.c (OEM_CHARSET fix)
-  ntdll-fix-NtLockFile-FIXMEs.patch    # git diff for ntdll changes
-  win32u-fix-OEM_CHARSET.patch         # git diff for font changes
-  kernelbase-fix-UnlockFileEx.patch    # git diff for UnlockFileEx overlapped I/O
-  kernel32-tests-expand-lockfile.patch # git diff for test additions
+patches/                               # git apply compatible patch files
+  ntdll-fix-NtLockFile-FIXMEs.patch    # NtLockFile/NtUnlockFile + IOCP completion
+  kernelbase-fix-UnlockFileEx.patch    # UnlockFileEx overlapped I/O
+  win32u-fix-OEM_CHARSET.patch         # OEM_CHARSET font matching
+  user32-fix-edit-BuildLineDefs.patch   # Edit control stability (user32)
+  comctl32-fix-edit-BuildLineDefs.patch # Edit control stability (comctl32_v6)
+  kernel32-tests-expand-lockfile.patch  # Expanded lock tests for Wine test suite
 
 tests/
-  locktest.c           # 51-check verification tool (unit tests)
+  locktest.c           # NtLockFile/NtUnlockFile verification (unit tests)
   lockstress.c         # Multi-threaded contention stress test (hang reproducer)
   fonttest.c           # OEM_CHARSET font matching test
+  edittest.c           # Edit control stability test
   kernel32_file_test.c # Full Wine kernel32 test file with expanded lock tests
 
-results/
-  locktest-unpatched.txt   # 7 passed, 33 failed
-  locktest-patched.txt     # 51 passed, 0 failed
-  lockstress-unpatched.txt # HANG DETECTED
-  lockstress-patched.txt   # 200/200 in ~10ms
-  fonttest-unpatched.txt   # 4 charset 255 FIXMEs
-  fonttest-patched.txt     # 0 FIXMEs
-  twgs-unpatched.txt       # Ports closed (hung)
-  twgs-patched.txt         # Ports open (working)
-
+results/               # Captured before/after test output
+wine/                  # Wine source (submodule, branch wine-11.0-clean)
 BUILDING.md            # How to build and test on macOS Apple Silicon
 ```
 
@@ -186,7 +176,5 @@ cd wine
 git apply /path/to/patches/ntdll-fix-NtLockFile-FIXMEs.patch
 git apply /path/to/patches/kernel32-tests-expand-lockfile.patch
 ```
-
-Or replace `dlls/ntdll/unix/file.c` with `patches/file.c` directly.
 
 See [BUILDING.md](BUILDING.md) for macOS Apple Silicon cross-compilation instructions.

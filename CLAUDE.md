@@ -51,14 +51,14 @@ Ports: 2002 (telnet), 2003 (admin). Headless: see [docs/twgs-headless.md](docs/t
 
 ## Patches (branch: wine-11.0-patched)
 
-| Patch | File | What it fixes |
+| Patch file | File(s) modified | What it fixes |
 |---|---|---|
-| NtLockFile FIXMEs | `dlls/ntdll/unix/file.c` | io_status, key, APC params rejected; contested async locks hang forever |
-| UnlockFileEx overlapped | `dlls/kernelbase/file.c` | Overlapped I/O support for UnlockFileEx |
-| OEM_CHARSET font matching | `dlls/win32u/font.c` | "Untranslated charset 255" FIXME for DOS terminal fonts |
-| Edit control stability | `dlls/user32/edit.c`, `dlls/comctl32_v6/edit.c` | "modification occurred outside buffer" FIXME on rapid text updates |
-| Rosetta WoW64 compat | `dlls/ntdll/unix/*.c` | Apple Silicon Rosetta 2 compatibility |
-| IOCP lock completion | `dlls/ntdll/unix/file.c` | I/O completion port posting on lock success |
+| `ntdll-fix-NtLockFile-FIXMEs.patch` | `dlls/ntdll/unix/file.c` | io_status, key, APC params rejected; contested async locks hang forever; IOCP completion posting on lock success |
+| `kernelbase-fix-UnlockFileEx.patch` | `dlls/kernelbase/file.c` | Overlapped I/O support for UnlockFileEx |
+| `win32u-fix-OEM_CHARSET.patch` | `dlls/win32u/font.c` | "Untranslated charset 255" FIXME for DOS terminal fonts |
+| `user32-fix-edit-BuildLineDefs.patch` | `dlls/user32/edit.c` | "modification occurred outside buffer" FIXME on rapid text updates |
+| `comctl32-fix-edit-BuildLineDefs.patch` | `dlls/comctl32_v6/edit.c` | Same edit control fix for comctl32_v6 |
+| `kernel32-tests-expand-lockfile.patch` | `dlls/kernel32/tests/file.c` | Expanded lock test coverage for Wine test suite (51 checks) |
 
 ## Test Tools
 
@@ -79,20 +79,22 @@ DYLD_LIBRARY_PATH=/opt/wine/lib wine edittest.exe       # edit control
 ## CI
 
 GitHub Actions workflow `prove.yml` runs on every push:
-- **Windows**: Ground truth — tests on real Windows NT kernel
-- **Linux (unpatched)**: Shows failures on stock Wine
-- **Linux (patched)**: Builds Wine from source, verifies all pass
+- **Windows** (2019, 2022, 2025): Ground truth — tests on real Windows NT kernel
+- **Linux unpatched** (ubuntu-22.04, ubuntu-24.04): Shows failures on stock Wine
+- **Linux patched** (ubuntu-22.04, ubuntu-24.04): Builds Wine from source, verifies all pass
+- **macOS patched** (13 Intel, 14/15 ARM64): Builds Wine with FreeType, validates primary target
 
 ## Repository Structure
 
 ```
-wine/                  # Wine source (submodule, branch wine-11.0-patched)
-patches/               # Diff files for each patch
+wine/                  # Wine source (submodule, branch wine-11.0-clean)
+patches/               # git apply compatible patch files
 tests/                 # locktest.c, lockstress.c, fonttest.c, edittest.c
 results/               # Captured before/after test output
-tools/                 # wine-monitor.sh, prove scripts
+tools/                 # wine-monitor.sh
 docs/                  # twgs-headless.md, twgs-profiling.md
-.github/workflows/     # CI pipeline
+.github/workflows/     # CI pipeline (matrix: Windows, Linux, macOS)
+Makefile               # Build and test pipeline (make prove)
 ```
 
 ## Install Target

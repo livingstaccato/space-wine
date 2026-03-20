@@ -1,8 +1,9 @@
-# Wine source tree (cloned by prove.sh)
+# Wine source tree (cloned by make clone)
 wine-src/
 
 # Build artifacts
 build/
+.patch-applied
 *.o
 *.exe
 *.so
