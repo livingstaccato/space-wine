@@ -192,7 +192,7 @@ jobs:
           echo "=== Lockstress ==="
           grep -E "Completed:|Hangs:" results-patched-lockstress.txt || true
           echo "=== Fonttest ==="
-          FIXME_COUNT=$(grep -c 'charset 255' results-patched-fonttest-stderr.txt 2>/dev/null || echo "0")
+          FIXME_COUNT="$(grep -c 'charset 255' results-patched-fonttest-stderr.txt 2>/dev/null)" || FIXME_COUNT="0"
           echo "charset 255 FIXMEs: $FIXME_COUNT"
           # Verify locktest
           if grep -q "0 failed" results-patched-locktest.txt 2>/dev/null; then
