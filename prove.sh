@@ -147,15 +147,27 @@ build_ntdll() {
             arch -x86_64 /bin/bash -c \
                 'CC="clang -arch x86_64" CXX="clang++ -arch x86_64" \
                  ../configure --enable-win64 --without-freetype --with-mingw=x86_64-w64-mingw32' \
-                >/dev/null 2>&1
+                > "$SCRIPT_DIR/build/configure.log" 2>&1
         )
-        ok "configure"
+        if [ ! -f "$BUILD_DIR/Makefile" ]; then
+            die "configure failed — see build/configure.log"
+        fi
+        ok "configure (log: build/configure.log)"
     fi
 
+    local ncpu
+    ncpu="$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
     (
         cd "$BUILD_DIR"
-        arch -x86_64 make -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc)" dlls/ntdll/ntdll.so 2>&1 | tail -1
+        export PATH="$BISON_PATH:$PATH"
+        # Build tools first (makedep, widl etc.), then ntdll and its dependencies
+        arch -x86_64 make -j"$ncpu" tools 2>&1 | tail -1
+        arch -x86_64 make -j"$ncpu" dlls/ntdll/ntdll.so 2>&1 | tail -1
     )
+
+    if [ ! -f "$BUILD_DIR/dlls/ntdll/ntdll.so" ]; then
+        die "ntdll.so build failed — check build output above"
+    fi
     ok "built: $BUILD_DIR/dlls/ntdll/ntdll.so"
     echo ""
 }
