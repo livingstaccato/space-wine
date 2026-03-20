@@ -1,0 +1,21 @@
+diff --git a/dlls/comctl32_v6/edit.c b/dlls/comctl32_v6/edit.c
+index a79e2c0c169..ac8ac91af2f 100644
+--- a/dlls/comctl32_v6/edit.c
++++ b/dlls/comctl32_v6/edit.c
+@@ -450,10 +450,13 @@ static void EDIT_BuildLineDefs_ML(EDITSTATE *es, INT istart, INT iend, INT delta
+ 		line_index++;
+ 	} while (current_line);
+ 
+-	if (!current_line) /* Error occurred start is not inside previous buffer */
++	if (!current_line)
+ 	{
+-		FIXME(" modification occurred outside buffer\n");
+-		return;
++		/* istart is past the end of the line list — the list is stale.
++		 * Use the last line and rebuild from there instead of bailing. */
++		WARN(" modification at %d outside line list, using last line\n", istart);
++		current_line = previous_line;
++		line_index--;
+ 	}
+ 
+ 	/* Remember start of modifications in order to calculate update region */
