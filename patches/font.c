@@ -2272,10 +2272,21 @@ static struct gdi_font_face *find_matching_face( const LOGFONTW *lf, CHARSETINFO
 
     if (!translate_charset_info( (DWORD *)(INT_PTR)lf->lfCharSet, csi, TCI_SRCCHARSET ))
     {
-        /* OEM_CHARSET (255) maps to the system OEM codepage at runtime */
-        if (lf->lfCharSet == OEM_CHARSET && oem_cp.CodePage &&
-            translate_charset_info( (DWORD *)(INT_PTR)oem_cp.CodePage, csi, TCI_SRCCODEPAGE ))
-            TRACE( "mapped OEM_CHARSET to codepage %d\n", oem_cp.CodePage );
+        /* OEM_CHARSET (255) maps to the system OEM codepage at runtime.
+         * If oem_cp isn't initialized yet (early init), fall back to CP437. */
+        if (lf->lfCharSet == OEM_CHARSET)
+        {
+            UINT cp = oem_cp.CodePage ? oem_cp.CodePage : 437;
+            if (translate_charset_info( (DWORD *)(INT_PTR)cp, csi, TCI_SRCCODEPAGE ))
+            {
+                TRACE( "mapped OEM_CHARSET to codepage %d\n", cp );
+            }
+            else
+            {
+                WARN( "OEM_CHARSET codepage %d not translatable\n", cp );
+                csi->fs.fsCsb[0] = 0;
+            }
+        }
         else
         {
             if (lf->lfCharSet != DEFAULT_CHARSET) FIXME( "Untranslated charset %d\n", lf->lfCharSet );
