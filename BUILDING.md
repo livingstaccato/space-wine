@@ -72,13 +72,17 @@ arch -x86_64 /bin/bash -c \
    CC="clang -arch x86_64" CXX="clang++ -arch x86_64" \
    FREETYPE_CFLAGS="-I/tmp/freetype-x86/include/freetype2" \
    FREETYPE_LIBS="-L/tmp/freetype-x86/lib -lfreetype" \
-   i386_CC="i686-w64-mingw32-gcc" \
-   ../configure --enable-win64 --prefix=/opt/wine'
+   ../configure --enable-archs=x86_64,i386 --prefix=/opt/wine'
 ```
+
+**CRITICAL:** Use `--enable-archs=x86_64,i386`, NOT `--enable-win64`. The archs flag
+builds both x86_64 and i386 PE DLLs from one tree. Without i386 DLLs, 32-bit apps
+(TWGS is PE32) fail with "failed to load syswow64/ntdll.dll".
 
 Verify the output includes:
 - `checking for -lfreetype... libfreetype.6.dylib` (NOT "not found")
 - `i386_CC = i686-w64-mingw32-gcc` in the Makefile (NOT empty)
+- 50+ `i386-windows` references in the Makefile
 
 ## Step 3: Build
 
@@ -92,6 +96,7 @@ Verify after build:
 - `dlls/ntdll/ntdll.so` — exists
 - `dlls/win32u/win32u.so` — exists
 - `server/wineserver` — exists
+- `find dlls -path '*/i386-windows/*.dll' | wc -l` — should be 600+ (NOT 0)
 
 ## Step 4: Install
 
@@ -101,11 +106,6 @@ arch -x86_64 make install
 
 # Copy freetype dylib (Wine dlopen's it at runtime)
 cp /tmp/freetype-x86/lib/libfreetype.6.dylib /opt/wine/lib/
-
-# Copy i386 PE DLLs from Wine Stable.app (Wine 11.0 configure doesn't
-# generate i386 targets on macOS — these provide WoW64 32-bit support)
-cp -R "/Applications/Wine Stable.app/Contents/Resources/wine/lib/wine/i386-windows" \
-  /opt/wine/lib/wine/
 ```
 
 ## Step 5: Test
@@ -141,9 +141,7 @@ DYLD_LIBRARY_PATH=/opt/wine/lib wine fonttest.exe       # 11 passed, 0 failed
 | Component | Why It's Needed | What Breaks Without It |
 |---|---|---|
 | FreeType (x86_64, from source) | Builds .fon fonts, loads TrueType at runtime | No fonts — blank/broken GUI windows |
-| `--enable-win64` | Builds 64-bit Wine host | Nothing works |
-| `i386_CC=i686-w64-mingw32-gcc` | Tells configure about 32-bit cross-compiler | No WoW64 in Makefile |
-| i386 DLLs from Wine Stable.app | 32-bit PE DLLs for WoW64 | 32-bit apps (TWGS) can't load |
+| `--enable-archs=x86_64,i386` | Builds both 64-bit and 32-bit PE DLLs | 32-bit apps (TWGS) can't load |
 | `DYLD_LIBRARY_PATH=/opt/wine/lib` | Runtime finds libfreetype.6.dylib | "cannot find FreeType" at startup |
 | `arch -x86_64` | Build tools run under Rosetta | Configure/make fail on arm64 |
 | bison from Homebrew | Wine's parser tools need bison >= 3.0 | Configure error |
