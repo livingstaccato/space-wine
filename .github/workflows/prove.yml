@@ -10,13 +10,15 @@ on:
 jobs:
   # ── Windows Ground Truth ──────────────────────────────────────────
   # Tests on real Windows NT kernel — defines expected behavior.
+  # Steps intentionally have no || true — failures here mean our test
+  # expectations are wrong and must be fixed (Windows is authoritative).
   windows-ground-truth:
     name: Windows (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2019, windows-2022, windows-2025]
+        os: [windows-2022, windows-2025]
     steps:
       - uses: actions/checkout@v4
 
@@ -277,7 +279,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-13, macos-14, macos-15]
+        os: [macos-14, macos-15]
     steps:
       - uses: actions/checkout@v4
 
@@ -285,22 +287,12 @@ jobs:
         run: |
           brew install mingw-w64 bison flex
 
-      - name: Install FreeType (Homebrew — Intel native)
-        if: runner.arch == 'X64'
-        run: |
-          brew install freetype
-          echo "FREETYPE_CFLAGS=-I$(brew --prefix freetype)/include/freetype2" >> $GITHUB_ENV
-          echo "FREETYPE_LIBS=-L$(brew --prefix freetype)/lib -lfreetype" >> $GITHUB_ENV
-          echo "FT_DYLD_PATH=$(brew --prefix freetype)/lib" >> $GITHUB_ENV
-          echo "ARCH_PREFIX=" >> $GITHUB_ENV
-
-      - name: Build FreeType x86_64 from source (Apple Silicon)
-        if: runner.arch == 'ARM64'
+      - name: Build FreeType x86_64 from source
         run: |
           curl -L https://download.savannah.gnu.org/releases/freetype/freetype-2.13.2.tar.xz | tar xJ
           cd freetype-2.13.2
           arch -x86_64 ./configure --prefix=/tmp/freetype-x86 \
-            CC="clang -arch x86_64" --with-zlib=no --with-bzip2=no --with-png=no --with-harfbuzz=no
+            CC="clang -arch x86_64" --with-zlib=no --with-bzip2=no --with-png=no --with-harfbuzz=no --with-brotli=no
           arch -x86_64 make -j$(sysctl -n hw.ncpu) && arch -x86_64 make install
           echo "FREETYPE_CFLAGS=-I/tmp/freetype-x86/include/freetype2" >> $GITHUB_ENV
           echo "FREETYPE_LIBS=-L/tmp/freetype-x86/lib -lfreetype" >> $GITHUB_ENV
@@ -327,6 +319,7 @@ jobs:
 
       - name: Build patched Wine
         run: |
+          export PATH="$(brew --prefix bison)/bin:$PATH"
           mkdir -p wine-src/build && cd wine-src/build
           $ARCH_PREFIX ../configure --enable-archs=x86_64,i386 --with-mingw \
             FREETYPE_CFLAGS="$FREETYPE_CFLAGS" FREETYPE_LIBS="$FREETYPE_LIBS" 2>&1 | tail -20
@@ -384,13 +377,19 @@ jobs:
           if grep -q "0 failed" results-macos-locktest.txt 2>/dev/null; then
             echo "PASS: locktest all passed"
           else
-            echo "WARN: locktest results unexpected"
+            echo "FAIL: locktest results unexpected"
+            cat results-macos-locktest.txt 2>/dev/null | tail -10 || true
+            exit 1
           fi
           echo "=== Lockstress ==="
           grep -E "Completed:|Hangs:" results-macos-lockstress.txt || true
           echo "=== Fonttest ==="
           FIXME_COUNT="$(grep -c 'charset 255' results-macos-fonttest-stderr.txt 2>/dev/null)" || FIXME_COUNT="0"
           echo "charset 255 FIXMEs: $FIXME_COUNT"
+          if [ "$FIXME_COUNT" != "0" ]; then
+            echo "FAIL: fonttest still has $FIXME_COUNT charset 255 FIXMEs"
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         if: always()

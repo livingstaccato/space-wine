@@ -79,10 +79,10 @@ DYLD_LIBRARY_PATH=/opt/wine/lib wine edittest.exe       # edit control
 ## CI
 
 GitHub Actions workflow `prove.yml` runs on every push:
-- **Windows** (2019, 2022, 2025): Ground truth — tests on real Windows NT kernel
+- **Windows** (2022, 2025): Ground truth — tests on real Windows NT kernel
 - **Linux unpatched** (ubuntu-22.04, ubuntu-24.04): Shows failures on stock Wine
 - **Linux patched** (ubuntu-22.04, ubuntu-24.04): Builds Wine from source, verifies all pass
-- **macOS patched** (13 Intel, 14/15 ARM64): Builds Wine with FreeType, validates primary target
+- **macOS patched** (14/15 ARM64): Builds Wine with FreeType, validates primary target
 
 ## Repository Structure
 
