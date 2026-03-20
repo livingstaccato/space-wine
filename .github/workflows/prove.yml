@@ -68,8 +68,9 @@ jobs:
           name: results-windows-${{ matrix.os }}
           path: results/
 
-  # ── Linux Wine (Unpatched) ────────────────────────────────────────
-  # Stock Wine from package manager — shows what breaks without patches.
+  # ── Linux Wine 11.0 (Unpatched) ──────────────────────────────────
+  # Builds same Wine 11.0 from source WITHOUT patches — shows failures.
+  # Same build config as patched job to isolate patches as the only variable.
   linux-wine-unpatched:
     name: Linux Unpatched (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -80,12 +81,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Wine and MinGW
+      - name: Install build deps
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install -y wine64 mingw-w64 || true
-          wine --version || wine64 --version || true
+          sudo apt-get install -y mingw-w64 gcc g++ make bison flex \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev \
+            libxfixes-dev libxrender-dev libxcomposite-dev libxinerama-dev \
+            libfreetype-dev gcc-multilib || true
 
       - name: Compile test tools
         run: |
@@ -94,36 +97,49 @@ jobs:
           x86_64-w64-mingw32-gcc -o fonttest.exe tests/fonttest.c -lgdi32 -luser32
           x86_64-w64-mingw32-gcc -o edittest.exe tests/edittest.c -lgdi32 -luser32
 
+      - name: Clone Wine 11.0 (no patches)
+        run: |
+          git clone --depth 1 --branch wine-11.0 https://gitlab.winehq.org/wine/wine.git wine-src
+
+      - name: Build unpatched Wine 11.0
+        run: |
+          mkdir -p wine-src/build && cd wine-src/build
+          ../configure --enable-archs=x86_64,i386 --with-mingw 2>&1 | tail -20
+          make -j$(nproc) 2>&1 | tail -3
+          ls -la dlls/ntdll/ntdll.so dlls/win32u/win32u.so server/wineserver
+
       - name: Init Wine prefix
         run: |
-          export WINEPREFIX=$HOME/.wine-test
-          export DISPLAY=:0
-          wineboot --init 2>&1 || wine64 wineboot --init 2>&1 || true
+          export WINEPREFIX=$HOME/.wine-unpatched
+          export WINESERVER=$PWD/wine-src/build/server/wineserver
+          pkill -f wineserver || true
+          sleep 2
+          wine-src/build/wine wineboot --init 2>&1 || true
           sleep 5
 
-      - name: Run locktest on stock Wine
+      - name: Run locktest on unpatched Wine 11.0
         run: |
-          export WINEPREFIX=$HOME/.wine-test
-          WINE=$(command -v wine || command -v wine64)
-          $WINE ./locktest.exe -v > results-unpatched-locktest.txt 2>&1 || true
+          export WINEPREFIX=$HOME/.wine-unpatched
+          export WINESERVER=$PWD/wine-src/build/server/wineserver
+          wine-src/build/wine ./locktest.exe -v > results-unpatched-locktest.txt 2>&1 || true
           cat results-unpatched-locktest.txt
           echo "---"
           grep "Results:" results-unpatched-locktest.txt || echo "No results line found"
 
-      - name: Run lockstress on stock Wine
+      - name: Run lockstress on unpatched Wine 11.0
         run: |
-          export WINEPREFIX=$HOME/.wine-test
-          WINE=$(command -v wine || command -v wine64)
-          timeout 30 $WINE ./lockstress.exe > results-unpatched-lockstress.txt 2>&1 || true
+          export WINEPREFIX=$HOME/.wine-unpatched
+          export WINESERVER=$PWD/wine-src/build/server/wineserver
+          timeout 30 wine-src/build/wine ./lockstress.exe > results-unpatched-lockstress.txt 2>&1 || true
           cat results-unpatched-lockstress.txt
           echo "---"
           grep -E "Completed:|Hangs:" results-unpatched-lockstress.txt || echo "No results"
 
-      - name: Run fonttest on stock Wine
+      - name: Run fonttest on unpatched Wine 11.0
         run: |
-          export WINEPREFIX=$HOME/.wine-test
-          WINE=$(command -v wine || command -v wine64)
-          WINEDEBUG=fixme+font $WINE ./fonttest.exe > results-unpatched-fonttest-stdout.txt 2>results-unpatched-fonttest-stderr.txt || true
+          export WINEPREFIX=$HOME/.wine-unpatched
+          export WINESERVER=$PWD/wine-src/build/server/wineserver
+          WINEDEBUG=fixme+font wine-src/build/wine ./fonttest.exe > results-unpatched-fonttest-stdout.txt 2>results-unpatched-fonttest-stderr.txt || true
           cat results-unpatched-fonttest-stdout.txt
           echo "--- FIXMEs ---"
           grep "charset 255" results-unpatched-fonttest-stderr.txt || echo "none"
