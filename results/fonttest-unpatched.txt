@@ -1,0 +1,9 @@
+=== fonttest.exe on Unpatched Wine 11.0 ===
+
+stderr (WINEDEBUG=fixme+font):
+0024:fixme:font:find_matching_face Untranslated charset 255
+0024:fixme:font:find_matching_face Untranslated charset 255
+0024:fixme:font:find_matching_face Untranslated charset 255
+0024:fixme:font:find_matching_face Untranslated charset 255
+
+Total charset 255 FIXMEs: 4

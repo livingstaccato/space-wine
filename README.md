@@ -68,6 +68,24 @@ if (key)
 
 **Fix:** Replace with `WARN` and proceed normally (same as FIXME #1 key handling).
 
+### FIXME #4: OEM_CHARSET (255) → "Untranslated charset" in font matching
+
+```c
+// Wine 11.0 dlls/win32u/font.c find_matching_face (line 2273)
+if (!translate_charset_info( ... ))
+{
+    if (lf->lfCharSet != DEFAULT_CHARSET) FIXME( "Untranslated charset %d\n", lf->lfCharSet );
+    csi->fs.fsCsb[0] = 0;  // falls back to generic matching
+}
+```
+
+**Impact:** Any app requesting fonts with OEM_CHARSET (DOS terminal fonts) gets a
+FIXME and falls back to generic font matching instead of charset-specific matching.
+Affects TWGS and any DOS-era BBS/terminal application running under Wine.
+
+**Fix:** Map OEM_CHARSET to the system OEM codepage (`oem_cp.CodePage`) via
+`translate_charset_info(TCI_SRCCODEPAGE)` before the FIXME fallback.
+
 ## Affected Software
 
 | Software | Bug(s) Hit | Symptom | Wine Bug |

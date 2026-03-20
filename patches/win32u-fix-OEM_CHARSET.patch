@@ -1,0 +1,22 @@
+diff --git a/dlls/win32u/font.c b/dlls/win32u/font.c
+index ed2ef5200b2..fe63561c53a 100644
+--- a/dlls/win32u/font.c
++++ b/dlls/win32u/font.c
+@@ -2272,8 +2272,15 @@ static struct gdi_font_face *find_matching_face( const LOGFONTW *lf, CHARSETINFO
+ 
+     if (!translate_charset_info( (DWORD *)(INT_PTR)lf->lfCharSet, csi, TCI_SRCCHARSET ))
+     {
+-        if (lf->lfCharSet != DEFAULT_CHARSET) FIXME( "Untranslated charset %d\n", lf->lfCharSet );
+-        csi->fs.fsCsb[0] = 0;
++        /* OEM_CHARSET (255) maps to the system OEM codepage at runtime */
++        if (lf->lfCharSet == OEM_CHARSET && oem_cp.CodePage &&
++            translate_charset_info( (DWORD *)(INT_PTR)oem_cp.CodePage, csi, TCI_SRCCODEPAGE ))
++            TRACE( "mapped OEM_CHARSET to codepage %d\n", oem_cp.CodePage );
++        else
++        {
++            if (lf->lfCharSet != DEFAULT_CHARSET) FIXME( "Untranslated charset %d\n", lf->lfCharSet );
++            csi->fs.fsCsb[0] = 0;
++        }
+     }
+ 
+     if (lf->lfFaceName[0])

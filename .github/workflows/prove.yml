@@ -21,6 +21,7 @@ jobs:
         run: |
           x86_64-w64-mingw32-gcc -o locktest.exe tests/locktest.c -lntdll
           x86_64-w64-mingw32-gcc -o lockstress.exe tests/lockstress.c
+          x86_64-w64-mingw32-gcc -o fonttest.exe tests/fonttest.c -lgdi32 -luser32
 
       - name: Run locktest on real Windows
         shell: cmd
@@ -30,6 +31,10 @@ jobs:
         shell: cmd
         run: lockstress.exe
 
+      - name: Run fonttest on real Windows
+        shell: cmd
+        run: fonttest.exe
+
       - name: Save results
         if: always()
         shell: bash
@@ -37,8 +42,10 @@ jobs:
           mkdir -p results
           ./locktest.exe -v > results/locktest-windows.txt 2>&1 || true
           ./lockstress.exe > results/lockstress-windows.txt 2>&1 || true
+          ./fonttest.exe > results/fonttest-windows.txt 2>&1 || true
           cat results/locktest-windows.txt | tail -5
           cat results/lockstress-windows.txt | tail -5
+          cat results/fonttest-windows.txt | tail -5
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -63,6 +70,7 @@ jobs:
         run: |
           x86_64-w64-mingw32-gcc -o locktest.exe tests/locktest.c -lntdll
           x86_64-w64-mingw32-gcc -o lockstress.exe tests/lockstress.c
+          x86_64-w64-mingw32-gcc -o fonttest.exe tests/fonttest.c -lgdi32 -luser32
 
       - name: Init Wine prefix
         run: |
@@ -89,11 +97,21 @@ jobs:
           echo "---"
           grep -E "Completed:|Hangs:" results-unpatched-lockstress.txt || echo "No results"
 
+      - name: Run fonttest on stock Wine (capture FIXMEs)
+        run: |
+          export WINEPREFIX=$HOME/.wine-test
+          WINE=$(command -v wine || command -v wine64)
+          WINEDEBUG=fixme+font $WINE ./fonttest.exe > results-unpatched-fonttest-stdout.txt 2>results-unpatched-fonttest-stderr.txt || true
+          cat results-unpatched-fonttest-stdout.txt
+          echo "--- FIXMEs ---"
+          grep "charset 255" results-unpatched-fonttest-stderr.txt || echo "none"
+          echo "count: $(grep -c 'charset 255' results-unpatched-fonttest-stderr.txt)"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: linux-unpatched-results
-          path: results-unpatched-*.txt
+          path: results-unpatched-*
 
   linux-wine-patched:
     name: Linux Wine (Patched)
@@ -115,35 +133,34 @@ jobs:
         run: |
           x86_64-w64-mingw32-gcc -o locktest.exe tests/locktest.c -lntdll
           x86_64-w64-mingw32-gcc -o lockstress.exe tests/lockstress.c
+          x86_64-w64-mingw32-gcc -o fonttest.exe tests/fonttest.c -lgdi32 -luser32
 
-      - name: Clone Wine 11.0 and apply patch
+      - name: Clone Wine 11.0 and apply patches
         run: |
           git clone --depth 1 --branch wine-11.0 https://gitlab.winehq.org/wine/wine.git wine-src
           cp patches/file.c wine-src/dlls/ntdll/unix/file.c
+          cp patches/font.c wine-src/dlls/win32u/font.c
 
-      - name: Build patched ntdll.so
+      - name: Build patched ntdll.so and win32u.so
         run: |
           mkdir -p wine-src/build && cd wine-src/build
           ../configure --enable-win64 --without-freetype --with-mingw=x86_64-w64-mingw32 2>&1 | tail -5
           make -j$(nproc) tools 2>&1 | tail -3
           make -j$(nproc) dlls/ntdll/ntdll.so 2>&1 | tail -3
-          ls -la dlls/ntdll/ntdll.so
+          make -j$(nproc) dlls/win32u/win32u.so 2>&1 | tail -3
+          ls -la dlls/ntdll/ntdll.so dlls/win32u/win32u.so
 
-      - name: Find and swap system ntdll.so
+      - name: Find and swap system .so files
         run: |
-          echo "Searching for system ntdll.so..."
-          find / -name ntdll.so 2>/dev/null | head -10
-          NTDLL=$(find /usr /opt -name ntdll.so -path '*x86_64*' 2>/dev/null | head -1)
-          if [ -z "$NTDLL" ]; then
-            NTDLL=$(find / -name ntdll.so -path '*x86_64*' 2>/dev/null | head -1)
+          echo "Searching for system Wine .so files..."
+          WINE_UNIX=$(find /usr /opt -type d -name 'x86_64-unix' -path '*/wine/*' 2>/dev/null | head -1)
+          if [ -z "$WINE_UNIX" ]; then
+            WINE_UNIX=$(find / -type d -name 'x86_64-unix' -path '*/wine/*' 2>/dev/null | head -1)
           fi
-          if [ -z "$NTDLL" ]; then
-            echo "WARN: No x86_64 ntdll.so found, trying any ntdll.so"
-            NTDLL=$(find / -name ntdll.so 2>/dev/null | head -1)
-          fi
-          echo "Using: $NTDLL"
-          sudo cp wine-src/build/dlls/ntdll/ntdll.so "$NTDLL"
-          echo "$NTDLL" > /tmp/ntdll_path.txt
+          echo "Wine unix dir: $WINE_UNIX"
+          sudo cp wine-src/build/dlls/ntdll/ntdll.so "$WINE_UNIX/ntdll.so"
+          sudo cp wine-src/build/dlls/win32u/win32u.so "$WINE_UNIX/win32u.so"
+          echo "$WINE_UNIX" > /tmp/wine_unix_path.txt
 
       - name: Init Wine prefix with patched ntdll
         run: |
@@ -172,22 +189,42 @@ jobs:
           echo "---"
           grep -E "Completed:|Hangs:" results-patched-lockstress.txt || echo "No results"
 
+      - name: Run fonttest on patched Wine (verify no FIXMEs)
+        run: |
+          export WINEPREFIX=$HOME/.wine-patched
+          WINE=$(command -v wine || command -v wine64)
+          WINEDEBUG=fixme+font $WINE ./fonttest.exe > results-patched-fonttest-stdout.txt 2>results-patched-fonttest-stderr.txt || true
+          cat results-patched-fonttest-stdout.txt
+          echo "--- FIXMEs ---"
+          grep "charset 255" results-patched-fonttest-stderr.txt || echo "NONE (fixed!)"
+          echo "count: $(grep -c 'charset 255' results-patched-fonttest-stderr.txt)"
+
       - name: Verify patched results
         run: |
           echo "=== Locktest ==="
           grep "Results:" results-patched-locktest.txt || true
           echo "=== Lockstress ==="
           grep -E "Completed:|Hangs:" results-patched-lockstress.txt || true
-          # Fail if locktest didn't produce results or has failures
+          echo "=== Fonttest ==="
+          FIXME_COUNT=$(grep -c 'charset 255' results-patched-fonttest-stderr.txt || echo 0)
+          echo "charset 255 FIXMEs: $FIXME_COUNT"
+          # Verify locktest
           if grep -q "0 failed" results-patched-locktest.txt; then
             echo "PASS: locktest all passed"
           else
-            echo "WARN: locktest results unexpected (may need Wine version with x86_64 support)"
+            echo "WARN: locktest results unexpected"
             cat results-patched-locktest.txt | tail -10
+          fi
+          # Verify fonttest (0 FIXMEs)
+          if [ "$FIXME_COUNT" = "0" ]; then
+            echo "PASS: fonttest no charset 255 FIXMEs"
+          else
+            echo "FAIL: fonttest still has $FIXME_COUNT charset 255 FIXMEs"
+            exit 1
           fi
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: linux-patched-results
-          path: results-patched-*.txt
+          path: results-patched-*

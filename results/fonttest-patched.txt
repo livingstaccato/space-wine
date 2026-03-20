@@ -1,0 +1,10 @@
+=== fonttest.exe on Patched Wine (OEM_CHARSET fix) ===
+
+stderr (WINEDEBUG=fixme+font):
+(no charset 255 FIXMEs)
+
+Total charset 255 FIXMEs: 0
+
+OEM_CHARSET is now mapped to system OEM codepage via
+translate_charset_info(TCI_SRCCODEPAGE), enabling proper
+charset-specific font matching instead of generic fallback.
