@@ -141,41 +141,27 @@ jobs:
           cp patches/file.c wine-src/dlls/ntdll/unix/file.c
           cp patches/font.c wine-src/dlls/win32u/font.c
 
-      - name: Build patched ntdll.so and win32u.so
+      - name: Build patched Wine (full server + DLLs)
         run: |
           mkdir -p wine-src/build && cd wine-src/build
           ../configure --enable-win64 --without-freetype --with-mingw=x86_64-w64-mingw32 2>&1 | tail -5
-          make -j$(nproc) tools 2>&1 | tail -3
-          make -j$(nproc) dlls/ntdll/ntdll.so 2>&1 | tail -3
-          make -j$(nproc) dlls/win32u/win32u.so 2>&1 | tail -3
-          ls -la dlls/ntdll/ntdll.so dlls/win32u/win32u.so
+          make -j$(nproc) 2>&1 | tail -3
+          ls -la dlls/ntdll/ntdll.so dlls/win32u/win32u.so server/wineserver
 
-      - name: Find and swap system .so files
-        run: |
-          echo "Searching for system Wine .so files..."
-          WINE_UNIX=$(find /usr /opt -type d -name 'x86_64-unix' -path '*/wine/*' 2>/dev/null | head -1)
-          if [ -z "$WINE_UNIX" ]; then
-            WINE_UNIX=$(find / -type d -name 'x86_64-unix' -path '*/wine/*' 2>/dev/null | head -1)
-          fi
-          echo "Wine unix dir: $WINE_UNIX"
-          sudo cp wine-src/build/dlls/ntdll/ntdll.so "$WINE_UNIX/ntdll.so"
-          sudo cp wine-src/build/dlls/win32u/win32u.so "$WINE_UNIX/win32u.so"
-          echo "$WINE_UNIX" > /tmp/wine_unix_path.txt
-
-      - name: Init Wine prefix with patched ntdll
+      - name: Init Wine prefix with patched build
         run: |
           export WINEPREFIX=$HOME/.wine-patched
+          export WINESERVER=$PWD/wine-src/build/server/wineserver
           pkill -f wineserver || true
           sleep 2
-          WINE=$(command -v wine || command -v wine64)
-          $WINE wineboot --init 2>&1 || true
+          wine-src/build/wine wineboot --init 2>&1 || true
           sleep 5
 
       - name: Run locktest on patched Wine
         run: |
           export WINEPREFIX=$HOME/.wine-patched
-          WINE=$(command -v wine || command -v wine64)
-          $WINE ./locktest.exe -v > results-patched-locktest.txt 2>&1 || true
+          export WINESERVER=$PWD/wine-src/build/server/wineserver
+          wine-src/build/wine ./locktest.exe -v > results-patched-locktest.txt 2>&1 || true
           cat results-patched-locktest.txt
           echo "---"
           grep "Results:" results-patched-locktest.txt || echo "No results line"
@@ -183,8 +169,8 @@ jobs:
       - name: Run lockstress on patched Wine
         run: |
           export WINEPREFIX=$HOME/.wine-patched
-          WINE=$(command -v wine || command -v wine64)
-          $WINE ./lockstress.exe > results-patched-lockstress.txt 2>&1 || true
+          export WINESERVER=$PWD/wine-src/build/server/wineserver
+          wine-src/build/wine ./lockstress.exe > results-patched-lockstress.txt 2>&1 || true
           cat results-patched-lockstress.txt
           echo "---"
           grep -E "Completed:|Hangs:" results-patched-lockstress.txt || echo "No results"
@@ -192,12 +178,12 @@ jobs:
       - name: Run fonttest on patched Wine (verify no FIXMEs)
         run: |
           export WINEPREFIX=$HOME/.wine-patched
-          WINE=$(command -v wine || command -v wine64)
-          WINEDEBUG=fixme+font $WINE ./fonttest.exe > results-patched-fonttest-stdout.txt 2>results-patched-fonttest-stderr.txt || true
+          export WINESERVER=$PWD/wine-src/build/server/wineserver
+          WINEDEBUG=fixme+font wine-src/build/wine ./fonttest.exe > results-patched-fonttest-stdout.txt 2>results-patched-fonttest-stderr.txt || true
           cat results-patched-fonttest-stdout.txt
           echo "--- FIXMEs ---"
           grep "charset 255" results-patched-fonttest-stderr.txt || echo "NONE (fixed!)"
-          echo "count: $(grep -c 'charset 255' results-patched-fonttest-stderr.txt)"
+          echo "count: $(grep -c 'charset 255' results-patched-fonttest-stderr.txt || true)"
 
       - name: Verify patched results
         run: |
@@ -206,14 +192,14 @@ jobs:
           echo "=== Lockstress ==="
           grep -E "Completed:|Hangs:" results-patched-lockstress.txt || true
           echo "=== Fonttest ==="
-          FIXME_COUNT=$(grep -c 'charset 255' results-patched-fonttest-stderr.txt || echo 0)
+          FIXME_COUNT=$(grep -c 'charset 255' results-patched-fonttest-stderr.txt 2>/dev/null || echo "0")
           echo "charset 255 FIXMEs: $FIXME_COUNT"
           # Verify locktest
-          if grep -q "0 failed" results-patched-locktest.txt; then
+          if grep -q "0 failed" results-patched-locktest.txt 2>/dev/null; then
             echo "PASS: locktest all passed"
           else
             echo "WARN: locktest results unexpected"
-            cat results-patched-locktest.txt | tail -10
+            cat results-patched-locktest.txt 2>/dev/null | tail -10 || true
           fi
           # Verify fonttest (0 FIXMEs)
           if [ "$FIXME_COUNT" = "0" ]; then
