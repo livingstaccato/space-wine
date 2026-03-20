@@ -1,9 +1,14 @@
 # space-wine: NtLockFile / NtUnlockFile FIXME Patches for Wine
 
+[![Prove NtLockFile Fix](https://github.com/livingstaccato/space-wine/actions/workflows/prove.yml/badge.svg)](https://github.com/livingstaccato/space-wine/actions/workflows/prove.yml)
+
 Fixes three longstanding FIXMEs in Wine's `dlls/ntdll/unix/file.c` that cause file
 locking to reject valid parameters or hang forever on contested overlapped locks.
 
 **Base:** Wine 11.0 (`db11d0fe6a1`)
+
+**CI verifies:** Tests run on real Windows (ground truth) and Linux Wine (unpatched vs patched).
+See [TRADEOFFS.md](TRADEOFFS.md) for design decisions and the blocking-vs-async tradeoff.
 
 ## The Bugs
 
