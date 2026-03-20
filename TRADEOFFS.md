@@ -98,6 +98,27 @@ Any application that hung before now works. No application that worked before is
 broken, because the only changed behavior is for contested overlapped locks — which
 previously always hung. There is no regression path.
 
+## APC on Immediate Success (Wine Deviation)
+
+**Windows behavior (verified via GitHub Actions CI on windows-latest):**
+When NtLockFile succeeds immediately (no contention), Windows does NOT queue the APC.
+APCs are only delivered for async completions — when `STATUS_PENDING` is returned and
+the lock is later granted. `SleepEx(0, TRUE)` returns 0, not `WAIT_IO_COMPLETION`.
+
+**Wine behavior (our patch):**
+We queue the APC on immediate success via `NtQueueApcThread`. This is a minor
+deviation from Windows but is harmless:
+- Callers that check for APC delivery handle both paths
+- No known software depends on APC *not* firing for immediate lock success
+- The alternative (not queuing) would be more correct but is a behavior change
+  we can't verify doesn't break something
+
+**NULL io_status:**
+Windows requires a non-NULL `io_status` parameter — passing NULL causes
+`STATUS_ACCESS_VIOLATION` (0xC0000005). Wine handles NULL gracefully. This is
+a defensive difference that doesn't affect real callers (all Win32 API paths
+provide io_status).
+
 ## Key Parameter: `key` (Ignored)
 
 Windows uses the `key` parameter in NtLockFile/NtUnlockFile to associate lock ranges
