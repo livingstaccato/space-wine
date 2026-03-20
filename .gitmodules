@@ -1,0 +1,4 @@
+[submodule "wine"]
+	path = wine
+	url = https://github.com/livingstaccato/wine.git
+	branch = wine-11.0-clean
