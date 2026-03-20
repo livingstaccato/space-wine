@@ -1,0 +1,25 @@
+
+============================================================
+  lockstress — Multi-threaded Overlapped File Lock Stress
+============================================================
+
+0114:fixme:file:NtLockFile I/O completion on lock not implemented yet
+0114:fixme:file:NtLockFile Async I/O lock wait not implemented, might deadlock
+0118:fixme:file:NtLockFile Async I/O lock wait not implemented, might deadlock
+  4 threads, 20 records, 50 iterations each
+  Total lock operations: 200
+  Timeout per lock: 5000 ms
+
+  Starting 4 threads...
+
+  ----------------------------------------------------------
+  Completed: 115 / 200 lock operations
+  Hangs:     2 (contested lock never completed)
+  Errors:    0
+  Time:      5003 ms
+
+  ** HANG DETECTED — Wine overlapped lock bug is present **
+  Contested LockFileEx returned ERROR_IO_PENDING but the
+  lock was never granted. This causes game servers and other
+  multi-threaded applications to freeze.
+

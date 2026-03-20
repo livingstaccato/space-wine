@@ -1,0 +1,10 @@
+=== TWGS on Patched Wine 11.0 ===
+Date: 2026-03-19
+
+Port 2002 (telnet): OPEN
+Port 2003 (admin):  OPEN
+
+TWGS started successfully with zero NtLockFile warnings.
+Full WINEDEBUG=warn+all output showed only 2 harmless FIXMEs
+(font charset warnings) out of 3252 log lines. No file locking
+errors whatsoever.

@@ -1,0 +1,70 @@
+diff --git a/dlls/ntdll/unix/file.c b/dlls/ntdll/unix/file.c
+index 42c82531051..b0988ce64de 100644
+--- a/dlls/ntdll/unix/file.c
++++ b/dlls/ntdll/unix/file.c
+@@ -6905,17 +6905,11 @@ NTSTATUS WINAPI NtLockFile( HANDLE file, HANDLE event, PIO_APC_ROUTINE apc, void
+                             IO_STATUS_BLOCK *io_status, LARGE_INTEGER *offset,
+                             LARGE_INTEGER *count, ULONG *key, BOOLEAN dont_wait, BOOLEAN exclusive )
+ {
+-    static int warn;
+     unsigned int ret;
+     HANDLE handle;
+-    BOOLEAN async;
++    ULONG_PTR cvalue = apc ? 0 : (ULONG_PTR)apc_user;
+ 
+-    if (apc || io_status || key)
+-    {
+-        FIXME("Unimplemented yet parameter\n");
+-        return STATUS_NOT_IMPLEMENTED;
+-    }
+-    if (apc_user && !warn++) FIXME("I/O completion on lock not implemented yet\n");
++    if (key) WARN( "lock key %#x ignored\n", *key );
+ 
+     for (;;)
+     {
+@@ -6928,20 +6922,24 @@ NTSTATUS WINAPI NtLockFile( HANDLE file, HANDLE event, PIO_APC_ROUTINE apc, void
+             req->wait        = !dont_wait;
+             ret = wine_server_call( req );
+             handle = wine_server_ptr_handle( reply->handle );
+-            async  = reply->overlapped;
+         }
+         SERVER_END_REQ;
+         if (ret != STATUS_PENDING)
+         {
+-            if (!ret && event) NtSetEvent( event, NULL );
++            if (!ret)
++            {
++                if (io_status)
++                {
++                    io_status->Status = STATUS_SUCCESS;
++                    io_status->Information = 0;
++                }
++                if (event) NtSetEvent( event, NULL );
++                if (cvalue) add_completion( file, cvalue, STATUS_SUCCESS, 0, FALSE );
++                if (apc) NtQueueApcThread( GetCurrentThread(), (PNTAPCFUNC)apc,
++                                           (ULONG_PTR)apc_user, (ULONG_PTR)io_status, 0 );
++            }
+             return ret;
+         }
+-        if (async)
+-        {
+-            FIXME( "Async I/O lock wait not implemented, might deadlock\n" );
+-            if (handle) NtClose( handle );
+-            return STATUS_PENDING;
+-        }
+         if (handle)
+         {
+             NtWaitForSingleObject( handle, FALSE, NULL );
+@@ -6969,11 +6967,7 @@ NTSTATUS WINAPI NtUnlockFile( HANDLE handle, IO_STATUS_BLOCK *io_status, LARGE_I
+            handle, io_status, wine_dbgstr_longlong(offset->QuadPart), wine_dbgstr_longlong(count->QuadPart) );
+ 
+     io_status->Information = 0;
+-    if (key)
+-    {
+-        FIXME("Unimplemented yet parameter\n");
+-        return (io_status->Status = STATUS_NOT_IMPLEMENTED);
+-    }
++    if (key) WARN( "lock key %#x ignored\n", *key );
+ 
+     SERVER_START_REQ( unlock_file )
+     {

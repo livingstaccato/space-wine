@@ -1,0 +1,12 @@
+=== TWGS on Unpatched Wine 11.0 ===
+Date: 2026-03-19
+
+Port 2002 (telnet): CLOSED
+Port 2003 (admin):  CLOSED
+
+Note: TWGS process started but hung during initialization.
+The server never opened its listening ports. This was reproduced
+multiple times earlier in this session before any ntdll swapping
+had been performed. The NtLockFile "Unimplemented yet parameter"
+FIXME blocks all file lock operations, preventing TWGS from
+completing its startup sequence.

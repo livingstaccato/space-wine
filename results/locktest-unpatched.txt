@@ -1,0 +1,92 @@
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+
+==========================================================
+  Wine NtLockFile / NtUnlockFile Verification Tool
+==========================================================
+
+  [io_status parameter]
+    FAIL NtLockFile returns STATUS_SUCCESS                     (STATUS_NOT_IMPLEMENTED)
+    FAIL io_status.Status == STATUS_SUCCESS                    (got 0xCCCCCCCC)
+    FAIL io_status.Information == 0                            (got 3435973836)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL conflicting lock returns lock error                   (STATUS_NOT_IMPLEMENTED)
+    ok   NtLockFile with NULL io_status succeeds               (STATUS_SUCCESS)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+
+  [key parameter]
+    FAIL NtLockFile with key=0x1234                            (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL NtLockFile with key=NULL                              (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL NtLockFile with key=0 (non-NULL ptr)                  (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL NtLockFile with key=0xDEADBEEF                        (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+
+  [APC delivery]
+    FAIL NtLockFile with APC succeeds                          (STATUS_NOT_IMPLEMENTED)
+    ok   APC not fired synchronously                           (count=0)
+    FAIL SleepEx returns WAIT_IO_COMPLETION                    (ret=0)
+    FAIL APC fired exactly once                                (count=0)
+    FAIL APC received correct context                          (got 0000000000000000)
+    FAIL APC received correct io_status pointer                (got 0000000000000000, expected 000000000031FE30)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL NtLockFile APC + NULL io_status                       (STATUS_NOT_IMPLEMENTED)
+    FAIL APC fires with NULL io_status                         (count=0)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+
+  [contested lock + event]
+    FAIL initial lock                                          (failed: STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+
+  [contested lock + IOCP]
+    FAIL initial lock                                          (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+
+  [shared vs exclusive locks]
+    FAIL shared lock on handle1                                (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL shared lock on handle2 (same range)                   (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL exclusive lock on handle1                             (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL shared lock blocked by exclusive                      (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL exclusive lock on handle1                             (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL exclusive blocked by exclusive                        (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL first shared lock                                     (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL second shared lock (same handle)                      (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL exclusive [0,100)                                     (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL overlapping [50,150) blocked                          (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL adjacent [100,200) succeeds                           (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile I/O completion on lock not implemented yet
+
+  [uncontested IOCP + event]
+    ok   uncontested IOCP lock succeeds                        (err=0)
+    ok   event signaled on uncontested lock                  
+    FAIL IOCP completion posted                                (err=258)
+    ok   LockFileEx with low-bit event                         (err=258)
+    ok   IOCP skipped with low-bit event                     
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+
+  [edge cases]
+    FAIL zero-length lock succeeds                             (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL lock at offset > 4GB                                  (STATUS_NOT_IMPLEMENTED)
+    ok   unlock non-locked range fails                         (STATUS_FILE_LOCK_CONFLICT)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL NtLockFile with io_status + key + event               (STATUS_NOT_IMPLEMENTED)
+0024:fixme:file:NtLockFile Unimplemented yet parameter
+    FAIL NtLockFile with io_status + key + apc                 (STATUS_NOT_IMPLEMENTED)
+
+  ----------------------------------------------------------
+  Results: 7 passed, 33 failed, 40 total
+  ** FAILURES indicate Wine bugs are present **
+

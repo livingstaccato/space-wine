@@ -1,0 +1,78 @@
+
+==========================================================
+  Wine NtLockFile / NtUnlockFile Verification Tool
+==========================================================
+
+  [io_status parameter]
+    ok   NtLockFile returns STATUS_SUCCESS                     (STATUS_SUCCESS)
+    ok   io_status.Status == STATUS_SUCCESS                    (got STATUS_SUCCESS)
+    ok   io_status.Information == 0                            (got 0)
+    ok   conflicting lock returns lock error                   (STATUS_FILE_LOCK_CONFLICT)
+    ok   NtLockFile with NULL io_status succeeds               (STATUS_SUCCESS)
+
+  [key parameter]
+    ok   NtLockFile with key=0x1234                            (STATUS_SUCCESS)
+    ok   NtUnlockFile with key=0x1234                          (STATUS_SUCCESS)
+    ok   NtLockFile with key=NULL                              (STATUS_SUCCESS)
+    ok   NtUnlockFile with mismatched key                      (STATUS_SUCCESS)
+    ok   NtLockFile with key=0 (non-NULL ptr)                  (STATUS_SUCCESS)
+    ok   NtUnlockFile with key=0 (non-NULL ptr)                (STATUS_SUCCESS)
+    ok   NtLockFile with key=0xDEADBEEF                        (STATUS_SUCCESS)
+
+  [APC delivery]
+    ok   NtLockFile with APC succeeds                          (STATUS_SUCCESS)
+    ok   APC not fired synchronously                           (count=0)
+    ok   SleepEx returns WAIT_IO_COMPLETION                    (ret=192)
+    ok   APC fired exactly once                                (count=1)
+    ok   APC received correct context                          (got 000000000000CAFE)
+    ok   APC received correct io_status pointer                (got 000000000031FE30, expected 000000000031FE30)
+    ok   NtLockFile APC + NULL io_status                       (STATUS_SUCCESS)
+    ok   APC fires with NULL io_status                         (count=1)
+
+  [contested lock + event]
+    ok   contested lock acquired                               (immediate success)
+    ok   event signaled on immediate success                 
+
+  [contested lock + IOCP]
+    ok   contested IOCP lock acquired                          (err=0)
+    ok   IOCP completion received                            
+    ok   IOCP key matches                                      (got 0xABCD)
+    ok   IOCP overlapped matches                               (got 000000000031FDE0)
+
+  [shared vs exclusive locks]
+    ok   shared lock on handle1                                (STATUS_SUCCESS)
+    ok   shared lock on handle2 (same range)                   (STATUS_SUCCESS)
+    ok   exclusive lock on handle1                             (STATUS_SUCCESS)
+    ok   shared lock blocked by exclusive                      (STATUS_FILE_LOCK_CONFLICT)
+    ok   exclusive lock on handle1                             (STATUS_SUCCESS)
+    ok   exclusive blocked by exclusive                        (STATUS_FILE_LOCK_CONFLICT)
+    ok   first shared lock                                     (STATUS_SUCCESS)
+    ok   second shared lock (same handle)                      (STATUS_SUCCESS)
+    ok   exclusive [0,100)                                     (STATUS_SUCCESS)
+    ok   overlapping [50,150) blocked                          (STATUS_FILE_LOCK_CONFLICT)
+    ok   adjacent [100,200) succeeds                           (STATUS_SUCCESS)
+
+  [uncontested IOCP + event]
+    ok   uncontested IOCP lock succeeds                        (err=0)
+    ok   event signaled on uncontested lock                  
+    ok   IOCP completion posted                              
+    ok   IOCP key correct                                      (got 0x9999)
+    ok   IOCP overlapped correct                               (got 000000000031FE10)
+    ok   LockFileEx with low-bit event                         (err=0)
+    ok   IOCP skipped with low-bit event                     
+
+  [edge cases]
+    ok   zero-length lock succeeds                             (STATUS_SUCCESS)
+    ok   lock at offset > 4GB                                  (STATUS_SUCCESS)
+    ok   unlock non-locked range fails                         (STATUS_FILE_LOCK_CONFLICT)
+    ok   NtLockFile with io_status + key + event               (STATUS_SUCCESS)
+    ok   event signaled                                      
+    ok   iosb.Status written                                   (STATUS_SUCCESS)
+    ok   NtLockFile with io_status + key + apc                 (STATUS_SUCCESS)
+    ok   APC fired                                             (count=1)
+    ok   iosb.Status written                                   (STATUS_SUCCESS)
+
+  ----------------------------------------------------------
+  Results: 53 passed, 0 failed, 53 total
+  All tests passed.
+
