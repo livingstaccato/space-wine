@@ -1,0 +1,16 @@
+# Wine source tree (cloned by prove.sh)
+wine-src/
+
+# Build artifacts
+build/
+*.o
+*.exe
+*.so
+*.dylib
+
+# macOS
+.DS_Store
+
+# Editor
+*.swp
+*~
