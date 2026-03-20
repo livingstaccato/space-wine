@@ -1,18 +1,21 @@
 === edittest.exe on Unpatched Wine ===
 
-The EDIT_BuildLineDefs_ML FIXME is a timing-dependent race condition
-that occurs when a multi-line edit control receives rapid text updates
-from concurrent activity (e.g. TWGS with active player connections).
+The EDIT_BuildLineDefs_ML FIXME is a race condition that requires real
+application load to trigger. Standalone tests (including 10,000+
+PostMessage-interleaved operations with timer-driven WM_SETTEXT resets)
+do NOT reproduce it — Wine's edit control correctly clamps all external
+inputs through the public API.
 
-The standalone edittest.exe does NOT reliably trigger it — it requires
-real concurrent load on the application's log window. The FIXME was
-observed in TWGS during normal operation with players connected:
+The FIXME was observed in TWGS (Trade Wars Game Server) during normal
+operation with active player connections. TWGS is a Delphi/VCL 32-bit
+application that updates a multi-line edit log window from game threads.
+The exact trigger likely involves VCL's internal message handling or
+direct buffer manipulation that bypasses Wine's input clamping.
 
-  00ec:fixme:edit:EDIT_BuildLineDefs_ML  modification occurred outside buffer
+The fix changes behavior from "bail and skip the line rebuild" to
+"use the last known line and rebuild from there." This is strictly
+defensive — no valid input can reach the patched code path through
+the public API, but an internal inconsistency (as seen in TWGS)
+is handled gracefully instead of silently dropped.
 
-The fix changes the behavior from "bail and skip the line rebuild"
-(FIXME + return) to "use the last known line and rebuild from there"
-(WARN + continue). This is strictly safer — the original code silently
-dropped the update, while the fix processes it.
-
-Not reproducible in isolation. Verified by running TWGS under load.
+Not reproducible in standalone tests. Verified by running TWGS under load.

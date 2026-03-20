@@ -1,83 +1,76 @@
-/*
- * edittest.exe — Multi-line edit control stress test
- *
- * Rapidly appends text to a multi-line edit control to reproduce the
- * "modification occurred outside buffer" FIXME in Wine's EDIT_BuildLineDefs_ML.
- *
- * On unpatched Wine: floods stderr with FIXME messages
- * On patched Wine: clean (WARN only with +edit trace enabled)
- *
- * Compile: x86_64-w64-mingw32-gcc -o edittest.exe edittest.c -lgdi32 -luser32
- */
-
 #include <stdio.h>
 #include <string.h>
-
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-#define NUM_APPENDS  500
-#define LINE_TEXT    "Log entry: TWGS game server status update - sector scan complete\r\n"
+#define WM_APPEND (WM_USER + 1)
+
+static HWND g_edit;
+static int g_counter = 0;
+
+static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    if (msg == WM_APPEND) {
+        char buf[200];
+        int len = GetWindowTextLengthA(g_edit);
+        SendMessageA(g_edit, EM_SETSEL, len, len);
+        sprintf(buf, "Append #%d at pos %d\r\n", g_counter++, len);
+        SendMessageA(g_edit, EM_REPLACESEL, FALSE, (LPARAM)buf);
+        /* Post another append immediately — queue fills up */
+        PostMessageA(hwnd, WM_APPEND, 0, 0);
+        return 0;
+    }
+    if (msg == WM_TIMER) {
+        /* Meanwhile, timer replaces ALL text with something shorter */
+        char buf[100];
+        sprintf(buf, "=== Timer reset %d ===\r\n", g_counter);
+        SetWindowTextA(g_edit, buf);
+        /* And post more appends */
+        PostMessageA(hwnd, WM_APPEND, 0, 0);
+        PostMessageA(hwnd, WM_APPEND, 0, 0);
+        PostMessageA(hwnd, WM_APPEND, 0, 0);
+        return 0;
+    }
+    return DefWindowProcA(hwnd, msg, wParam, lParam);
+}
 
 int main(void)
 {
-    HWND hwnd, edit;
+    HWND hwnd;
     MSG msg;
-    DWORD start, elapsed;
-    int i;
+    WNDCLASSA wc = {0};
+    DWORD start;
 
-    printf("\n");
-    printf("============================================================\n");
-    printf("  Multi-line Edit Control Stress Test\n");
-    printf("============================================================\n\n");
-    printf("  Appending %d lines to a multi-line edit control.\n", NUM_APPENDS);
-    printf("  On unpatched Wine, this produces FIXME spam on stderr.\n");
-    printf("  On patched Wine, no FIXMEs.\n\n");
+    printf("\n  Edit Control PostMessage Interleaving Test\n\n");
 
-    /* Create a hidden window with a multi-line edit control */
-    hwnd = CreateWindowExA(0, "STATIC", "edittest",
-                           WS_OVERLAPPEDWINDOW,
-                           0, 0, 400, 300,
-                           NULL, NULL, GetModuleHandleA(NULL), NULL);
-    if (!hwnd) {
-        printf("  ERROR: CreateWindow failed (%lu)\n", GetLastError());
-        return 1;
-    }
+    wc.lpfnWndProc = wnd_proc;
+    wc.hInstance = GetModuleHandleA(NULL);
+    wc.lpszClassName = "EditTest";
+    RegisterClassA(&wc);
 
-    edit = CreateWindowExA(0, "EDIT", "",
-                           WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_AUTOVSCROLL |
-                           ES_READONLY | WS_VSCROLL,
-                           0, 0, 380, 280,
-                           hwnd, (HMENU)1, GetModuleHandleA(NULL), NULL);
-    if (!edit) {
-        printf("  ERROR: CreateWindow EDIT failed (%lu)\n", GetLastError());
-        DestroyWindow(hwnd);
-        return 1;
-    }
+    hwnd = CreateWindowExA(0, "EditTest", "test", WS_OVERLAPPEDWINDOW,
+                           0, 0, 100, 50, NULL, NULL, GetModuleHandleA(NULL), NULL);
+    ShowWindow(hwnd, SW_SHOW);
 
-    /* Rapidly append text — this is what TWGS does to its log window */
+    g_edit = CreateWindowExA(0, "EDIT", "",
+                             WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_AUTOVSCROLL,
+                             0, 0, 80, 30, hwnd, (HMENU)1,
+                             GetModuleHandleA(NULL), NULL);
+
+    /* Start timer (fires every 10ms) and initial appends */
+    SetTimer(hwnd, 1, 10, NULL);
+    PostMessageA(hwnd, WM_APPEND, 0, 0);
+
     start = GetTickCount();
-
-    for (i = 0; i < NUM_APPENDS; i++) {
-        int len = GetWindowTextLengthA(edit);
-        SendMessageA(edit, EM_SETSEL, len, len);
-        SendMessageA(edit, EM_REPLACESEL, FALSE, (LPARAM)LINE_TEXT);
-
-        /* Process messages periodically to let the control update */
-        if (i % 50 == 0) {
-            while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE))
-                DispatchMessageA(&msg);
+    while (GetTickCount() - start < 3000) {
+        if (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
+            TranslateMessage(&msg);
+            DispatchMessageA(&msg);
         }
     }
 
-    elapsed = GetTickCount() - start;
-
-    printf("  Completed: %d appends in %lu ms\n", NUM_APPENDS, elapsed);
-    printf("  Final text length: %d chars\n", GetWindowTextLengthA(edit));
-    printf("\n  Check stderr for FIXME messages.\n");
-    printf("  'modification occurred outside buffer' = BUG (unpatched)\n");
-    printf("  Clean stderr = PASS (patched)\n\n");
-
+    KillTimer(hwnd, 1);
+    printf("  Done (%d operations). Check stderr.\n\n", g_counter);
     DestroyWindow(hwnd);
     return 0;
 }
