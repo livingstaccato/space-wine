@@ -1,5 +1,18 @@
 === edittest.exe on Unpatched Wine ===
 
-  Expected: many "fixme:edit:EDIT_BuildLineDefs_ML modification
-  occurred outside buffer" messages on stderr from rapid text
-  insertion outpacing the line definition rebuild.
+The EDIT_BuildLineDefs_ML FIXME is a timing-dependent race condition
+that occurs when a multi-line edit control receives rapid text updates
+from concurrent activity (e.g. TWGS with active player connections).
+
+The standalone edittest.exe does NOT reliably trigger it — it requires
+real concurrent load on the application's log window. The FIXME was
+observed in TWGS during normal operation with players connected:
+
+  00ec:fixme:edit:EDIT_BuildLineDefs_ML  modification occurred outside buffer
+
+The fix changes the behavior from "bail and skip the line rebuild"
+(FIXME + return) to "use the last known line and rebuild from there"
+(WARN + continue). This is strictly safer — the original code silently
+dropped the update, while the fix processes it.
+
+Not reproducible in isolation. Verified by running TWGS under load.
