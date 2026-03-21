@@ -101,17 +101,19 @@ Verify after build:
 ## Step 4: Install
 
 ```bash
-pkill -f wineserver; sleep 1
+WINEPREFIX=~/.wine /opt/wine/bin/wineserver -k 2>/dev/null; sleep 1
 arch -x86_64 make install
 
-# Copy freetype dylib (Wine dlopen's it at runtime)
+# Copy freetype dylib and fix install_name to match final location
 cp /tmp/freetype-x86/lib/libfreetype.6.dylib /opt/wine/lib/
+install_name_tool -id /opt/wine/lib/libfreetype.6.dylib /opt/wine/lib/libfreetype.6.dylib
+codesign -f -s - /opt/wine/lib/libfreetype.6.dylib
 ```
 
 ## Step 5: Test
 
 ```bash
-pkill -f wineserver; sleep 1
+WINEPREFIX=~/.wine /opt/wine/bin/wineserver -k 2>/dev/null; sleep 1
 /opt/wine/bin/wine --version
 # Should show: wine-11.0-XX-gXXXXXXX
 
