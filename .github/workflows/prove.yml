@@ -129,7 +129,7 @@ jobs:
         run: |
           export WINEPREFIX=$HOME/.wine-unpatched
           export WINESERVER=$PWD/wine-src/build/server/wineserver
-          pkill -f wineserver || true
+          wine-src/build/server/wineserver -k 2>/dev/null || true
           sleep 2
           wine-src/build/wine wineboot --init 2>&1 || true
           sleep 5
@@ -219,7 +219,7 @@ jobs:
         run: |
           export WINEPREFIX=$HOME/.wine-patched
           export WINESERVER=$PWD/wine-src/build/server/wineserver
-          pkill -f wineserver || true
+          wine-src/build/server/wineserver -k 2>/dev/null || true
           sleep 2
           wine-src/build/wine wineboot --init 2>&1 || true
           sleep 5
@@ -373,7 +373,7 @@ jobs:
           export DYLD_LIBRARY_PATH=$FT_DYLD_PATH
           export WINEPREFIX=$HOME/.wine-patched
           export WINESERVER=$PWD/wine-src/build/server/wineserver
-          pkill -f wineserver || true
+          wine-src/build/server/wineserver -k 2>/dev/null || true
           sleep 2
           wine-src/build/wine wineboot --init 2>&1 || true
           sleep 5

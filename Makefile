@@ -120,7 +120,7 @@ build: $(BUILD_DIR)/server/wineserver
 # ── Install ───────────────────────────────────────────────────────
 
 install: $(BUILD_DIR)/server/wineserver
-	pkill -f wineserver || true
+	WINEPREFIX=$(CURDIR)/build/.wine-test $(WINESERVER) -k 2>/dev/null || true
 	sleep 1
 	cd $(BUILD_DIR) && $(ARCH_PREFIX) make install
 ifeq ($(UNAME_S),Darwin)
