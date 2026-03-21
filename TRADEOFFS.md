@@ -15,7 +15,10 @@ event, posts to the I/O completion port, and/or queues the APC.
 
 Returns `STATUS_PENDING` and **never completes the lock**. The event is never
 signaled, the IOCP never receives a completion, and the APC is never queued. The
-calling thread hangs forever if it waits on any of these.
+calling thread hangs forever if it waits on any of these. Because the lock is never
+granted or released, the underlying file descriptor remains held in a locked state —
+other threads contending on the same range also hang, creating a cascade of leaked
+file descriptors and frozen threads.
 
 ```c
 if (async)

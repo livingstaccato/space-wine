@@ -45,9 +45,13 @@ if (async)
 ```
 
 **Impact:** When an overlapped file handle contends on a lock held by another handle,
-Wine returns `STATUS_PENDING` and **never completes the lock**. The calling thread
-hangs forever. This is the bug that causes multi-threaded game servers (TWGS),
-VMware vSphere client installers, and Newsbin to freeze.
+Wine returns `STATUS_PENDING` and **never completes the lock**. The event is never
+signaled, the IOCP completion is never posted, and the calling thread hangs forever.
+Because the lock is never granted or released, the underlying file descriptor remains
+held in a locked state — other threads contending on the same range also hang,
+creating a cascade of leaked file descriptors and frozen threads. This is the bug that
+causes multi-threaded game servers (TWGS), VMware vSphere client installers, and
+Newsbin to freeze.
 
 **Fix:** Remove the early return. Let overlapped handles fall through to the same
 blocking wait-and-retry loop that synchronous handles use. The existing success path
