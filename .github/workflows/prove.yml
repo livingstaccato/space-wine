@@ -32,6 +32,7 @@ jobs:
           x86_64-w64-mingw32-gcc -o lockstress.exe tests/lockstress.c
           x86_64-w64-mingw32-gcc -o fonttest.exe tests/fonttest.c -lgdi32 -luser32
           x86_64-w64-mingw32-gcc -o edittest.exe tests/edittest.c -lgdi32 -luser32
+          x86_64-w64-mingw32-gcc -o fdleaktest.exe tests/fdleaktest.c
 
       - name: Run locktest
         shell: cmd
@@ -49,6 +50,10 @@ jobs:
         shell: cmd
         run: edittest.exe
 
+      - name: Run fdleaktest
+        shell: cmd
+        run: fdleaktest.exe -v
+
       - name: Save results
         if: always()
         shell: bash
@@ -58,9 +63,11 @@ jobs:
           ./lockstress.exe > results/lockstress.txt 2>&1 || true
           ./fonttest.exe > results/fonttest.txt 2>&1 || true
           ./edittest.exe > results/edittest.txt 2>&1 || true
+          ./fdleaktest.exe -v > results/fdleaktest.txt 2>&1 || true
           tail -5 results/locktest.txt
           tail -5 results/lockstress.txt
           tail -5 results/fonttest.txt
+          tail -5 results/fdleaktest.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -96,6 +103,7 @@ jobs:
           x86_64-w64-mingw32-gcc -o lockstress.exe tests/lockstress.c
           x86_64-w64-mingw32-gcc -o fonttest.exe tests/fonttest.c -lgdi32 -luser32
           x86_64-w64-mingw32-gcc -o edittest.exe tests/edittest.c -lgdi32 -luser32
+          x86_64-w64-mingw32-gcc -o fdleaktest.exe tests/fdleaktest.c
 
       - name: Cache unpatched Wine 11.0 build
         id: cache-wine
@@ -187,6 +195,7 @@ jobs:
           x86_64-w64-mingw32-gcc -o lockstress.exe tests/lockstress.c
           x86_64-w64-mingw32-gcc -o fonttest.exe tests/fonttest.c -lgdi32 -luser32
           x86_64-w64-mingw32-gcc -o edittest.exe tests/edittest.c -lgdi32 -luser32
+          x86_64-w64-mingw32-gcc -o fdleaktest.exe tests/fdleaktest.c
 
       - name: Clone Wine 11.0 and apply patches
         run: |
@@ -252,6 +261,13 @@ jobs:
           echo "--- FIXMEs ---"
           EDIT_FIXMES="$(grep -c 'EDIT_BuildLineDefs_ML' results-patched-edittest-stderr.txt 2>/dev/null)" || EDIT_FIXMES="0"
           echo "EDIT_BuildLineDefs_ML FIXMEs: $EDIT_FIXMES"
+
+      - name: Run fdleaktest
+        run: |
+          export WINEPREFIX=$HOME/.wine-patched
+          export WINESERVER=$PWD/wine-src/build/server/wineserver
+          wine-src/build/wine ./fdleaktest.exe -v > results-patched-fdleaktest.txt 2>&1 || true
+          cat results-patched-fdleaktest.txt
 
       - name: Run Wine kernel32 file tests
         run: |
@@ -330,6 +346,7 @@ jobs:
           x86_64-w64-mingw32-gcc -o lockstress.exe tests/lockstress.c
           x86_64-w64-mingw32-gcc -o fonttest.exe tests/fonttest.c -lgdi32 -luser32
           x86_64-w64-mingw32-gcc -o edittest.exe tests/edittest.c -lgdi32 -luser32
+          x86_64-w64-mingw32-gcc -o fdleaktest.exe tests/fdleaktest.c
 
       - name: Clone Wine 11.0 and apply patches
         run: |
@@ -394,6 +411,14 @@ jobs:
           wine-src/build/wine ./edittest.exe \
             > results-macos-edittest-stdout.txt 2>results-macos-edittest-stderr.txt || true
           cat results-macos-edittest-stdout.txt
+
+      - name: Run fdleaktest
+        run: |
+          export DYLD_LIBRARY_PATH=$FT_DYLD_PATH
+          export WINEPREFIX=$HOME/.wine-patched
+          export WINESERVER=$PWD/wine-src/build/server/wineserver
+          wine-src/build/wine ./fdleaktest.exe -v > results-macos-fdleaktest.txt 2>&1 || true
+          cat results-macos-fdleaktest.txt
 
       - name: Verify results
         run: |

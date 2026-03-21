@@ -44,7 +44,7 @@ PATCHES := \
 	patches/kernel32-tests-expand-lockfile.patch
 
 # Test executables
-TEST_EXES := build/locktest.exe build/lockstress.exe build/fonttest.exe build/edittest.exe
+TEST_EXES := build/locktest.exe build/lockstress.exe build/fonttest.exe build/edittest.exe build/fdleaktest.exe
 
 .PHONY: all prove clone patch build test test-tools install clean help
 
@@ -74,6 +74,9 @@ build/fonttest.exe: tests/fonttest.c | build
 
 build/edittest.exe: tests/edittest.c | build
 	$(MINGW_GCC) -o $@ $< -lgdi32 -luser32
+
+build/fdleaktest.exe: tests/fdleaktest.c | build
+	$(MINGW_GCC) -o $@ $<
 
 build:
 	mkdir -p build
@@ -171,6 +174,12 @@ test: $(TEST_EXES) $(BUILD_DIR)/server/wineserver
 	@cat $(RESULTS_DIR)/edittest-stdout.txt
 	@EDIT_FIXMES=$$(grep -c 'EDIT_BuildLineDefs_ML' $(RESULTS_DIR)/edittest-stderr.txt 2>/dev/null || echo 0); \
 		echo "EDIT_BuildLineDefs_ML FIXMEs: $$EDIT_FIXMES"
+	@echo ""
+	@# fdleaktest
+	@echo "--- fdleaktest ---"
+	WINEPREFIX=$(CURDIR)/build/.wine-test WINESERVER=$(WINESERVER) \
+		$(WINE_CMD) ./build/fdleaktest.exe -v 2>/dev/null \
+		| tee $(RESULTS_DIR)/fdleaktest.txt | grep -E "Results:|FAIL|All tests" || true
 	@echo ""
 	@echo "Results saved to $(RESULTS_DIR)/"
 

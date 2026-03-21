@@ -68,12 +68,14 @@ x86_64-w64-mingw32-gcc -o locktest.exe tests/locktest.c -lntdll
 x86_64-w64-mingw32-gcc -o lockstress.exe tests/lockstress.c
 x86_64-w64-mingw32-gcc -o fonttest.exe tests/fonttest.c -lgdi32 -luser32
 x86_64-w64-mingw32-gcc -o edittest.exe tests/edittest.c -lgdi32 -luser32
+x86_64-w64-mingw32-gcc -o fdleaktest.exe tests/fdleaktest.c
 
 # Run
-DYLD_LIBRARY_PATH=/opt/wine/lib wine locktest.exe -v   # 51 checks
+DYLD_LIBRARY_PATH=/opt/wine/lib wine locktest.exe -v   # lock parameter tests
 DYLD_LIBRARY_PATH=/opt/wine/lib wine lockstress.exe     # 200 lock ops
 DYLD_LIBRARY_PATH=/opt/wine/lib wine fonttest.exe       # OEM_CHARSET
 DYLD_LIBRARY_PATH=/opt/wine/lib wine edittest.exe       # edit control
+DYLD_LIBRARY_PATH=/opt/wine/lib wine fdleaktest.exe -v  # FD/handle leak
 ```
 
 ## CI
