@@ -305,11 +305,27 @@ jobs:
             exit 1
           fi
 
+      - name: Package Wine install tarball
+        run: |
+          cd wine-src/build
+          make install DESTDIR=$GITHUB_WORKSPACE/wine-install 2>&1 | tail -3
+          cd $GITHUB_WORKSPACE/wine-install
+          ARCH=$(uname -m)
+          TARBALL="wine-space-wine-11.0-linux-${ARCH}.tar.xz"
+          tar cJf "$GITHUB_WORKSPACE/$TARBALL" opt/
+          ls -lh "$GITHUB_WORKSPACE/$TARBALL"
+          echo "TARBALL=$TARBALL" >> $GITHUB_ENV
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: results-linux-patched-${{ matrix.os }}
           path: results-patched-*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TARBALL }}
+          path: ${{ env.TARBALL }}
 
   # ── macOS Wine (Patched) ──────────────────────────────────────────
   # Builds Wine on macOS — validates the primary deployment target.
@@ -441,8 +457,28 @@ jobs:
             exit 1
           fi
 
+      - name: Package Wine install tarball
+        run: |
+          export PATH="$(brew --prefix bison)/bin:$PATH"
+          cd wine-src/build
+          $ARCH_PREFIX make install DESTDIR=$GITHUB_WORKSPACE/wine-install 2>&1 | tail -3
+          # Copy FreeType into the install
+          cp $FT_DYLD_PATH/libfreetype* $GITHUB_WORKSPACE/wine-install/opt/wine/lib/ 2>/dev/null || true
+          cd $GITHUB_WORKSPACE/wine-install
+          ARCH=$(uname -m)
+          OS_VER=$(sw_vers -productVersion | cut -d. -f1)
+          TARBALL="wine-space-wine-11.0-macos${OS_VER}-${ARCH}.tar.xz"
+          tar cJf "$GITHUB_WORKSPACE/$TARBALL" opt/
+          ls -lh "$GITHUB_WORKSPACE/$TARBALL"
+          echo "TARBALL=$TARBALL" >> $GITHUB_ENV
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: results-macos-patched-${{ matrix.os }}
           path: results-macos-*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TARBALL }}
+          path: ${{ env.TARBALL }}

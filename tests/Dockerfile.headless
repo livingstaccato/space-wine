@@ -1,0 +1,61 @@
+FROM --platform=linux/amd64 ubuntu:24.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Wine build deps
+RUN dpkg --add-architecture i386 && apt-get update && apt-get install -y \
+    mingw-w64 gcc g++ make bison flex git pkg-config \
+    libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev \
+    libxfixes-dev libxrender-dev libxcomposite-dev libxinerama-dev \
+    libfreetype-dev libfreetype6:i386 gcc-multilib \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone and patch Wine
+WORKDIR /build
+COPY patches/ /build/patches/
+RUN git clone --depth 1 --branch wine-11.0 https://gitlab.winehq.org/wine/wine.git wine-src \
+    && cd wine-src \
+    && git apply /build/patches/ntdll-fix-NtLockFile-FIXMEs.patch \
+    && git apply /build/patches/win32u-fix-OEM_CHARSET.patch \
+    && git apply /build/patches/kernelbase-fix-UnlockFileEx.patch \
+    && git apply /build/patches/user32-fix-edit-BuildLineDefs.patch \
+    && git apply /build/patches/comctl32-fix-edit-BuildLineDefs.patch \
+    && git apply /build/patches/kernel32-tests-expand-lockfile.patch
+
+# Configure Wine (separate step for better error visibility)
+RUN mkdir -p wine-src/build && cd wine-src/build \
+    && ../configure --enable-archs=x86_64,i386 --with-mingw --prefix=/opt/wine
+
+# Build Wine (limit parallelism — QEMU emulation can segfault with too many jobs)
+RUN cd wine-src/build && make -j2 || make -j1
+
+# Install Wine
+RUN cd wine-src/build && make install
+
+# --- Runtime stage ---
+FROM --platform=linux/amd64 ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN dpkg --add-architecture i386 && apt-get update && apt-get install -y \
+    xvfb libx11-6 libxext6 libxrandr2 libxcursor1 libxi6 \
+    libxfixes3 libxrender1 libxcomposite1 libxinerama1 \
+    libfreetype6 netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Wine install from builder
+COPY --from=builder /opt/wine /opt/wine
+
+# Copy test script
+COPY tests/twgs-headless-test.sh /test/
+RUN chmod +x /test/twgs-headless-test.sh
+
+ENV PATH="/opt/wine/bin:$PATH"
+
+# TWGS binary mounted at runtime via -v
+# Wine prefix mounted at runtime via -v or initialized fresh
+VOLUME /twgs
+VOLUME /wineprefix
+
+WORKDIR /test
+CMD ["/test/twgs-headless-test.sh"]
