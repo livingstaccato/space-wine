@@ -295,7 +295,8 @@ jobs:
           ls -d ${{ github.workspace }}/wine-install/opt/wine/bin/wine
           cd ${{ github.workspace }}/wine-install
           ARCH=$(uname -m)
-          TARBALL="wine-space-wine-11.0-linux-${ARCH}.tar.xz"
+          OS_ID=$(lsb_release -rs | tr -d '.')
+          TARBALL="wine-space-wine-11.0-ubuntu${OS_ID}-${ARCH}.tar.xz"
           tar cJf "${{ github.workspace }}/$TARBALL" opt/
           ls -lh "${{ github.workspace }}/$TARBALL"
           echo "TARBALL=$TARBALL" >> $GITHUB_ENV
