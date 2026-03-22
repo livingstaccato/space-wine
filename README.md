@@ -5,7 +5,7 @@
 Fixes three longstanding FIXMEs in Wine's `dlls/ntdll/unix/file.c` that cause file
 locking to reject valid parameters or hang forever on contested overlapped locks.
 
-**Base:** Wine 11.0 (`db11d0fe6a1`)
+**Base:** Wine 11.0+, tested against wine-11.5 (latest development)
 
 **CI verifies:** Tests run on real Windows (ground truth) and Linux Wine (unpatched vs patched).
 See [TRADEOFFS.md](TRADEOFFS.md) for design decisions and the blocking-vs-async tradeoff.
@@ -121,7 +121,7 @@ tests/
   kernel32_file_test.c # Full Wine kernel32 test file with expanded lock tests
 
 results/               # Captured before/after test output
-wine/                  # Wine source (submodule, branch wine-11.0-clean)
+wine/                  # Wine source (submodule)
 BUILDING.md            # How to build and test on macOS Apple Silicon
 ```
 

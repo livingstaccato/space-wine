@@ -13,7 +13,7 @@ RUN dpkg --add-architecture i386 && apt-get update && apt-get install -y \
 # Clone and patch Wine
 WORKDIR /build
 COPY patches/ /build/patches/
-RUN git clone --depth 1 --branch wine-11.0 https://gitlab.winehq.org/wine/wine.git wine-src \
+RUN git clone --depth 1 --branch wine-11.5 https://gitlab.winehq.org/wine/wine.git wine-src \
     && cd wine-src \
     && git apply /build/patches/ntdll-fix-NtLockFile-FIXMEs.patch \
     && git apply /build/patches/win32u-fix-OEM_CHARSET.patch \

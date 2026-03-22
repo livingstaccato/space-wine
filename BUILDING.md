@@ -115,7 +115,7 @@ codesign -f -s - /opt/wine/lib/libfreetype.6.dylib
 ```bash
 WINEPREFIX=~/.wine /opt/wine/bin/wineserver -k 2>/dev/null; sleep 1
 /opt/wine/bin/wine --version
-# Should show: wine-11.0-XX-gXXXXXXX
+# Should show: wine-11.5 or similar
 
 DYLD_LIBRARY_PATH=/opt/wine/lib WINEPREFIX=~/.wine \
   /opt/wine/bin/wine ~/.wine/drive_c/TWGS/twgs.exe

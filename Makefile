@@ -12,11 +12,11 @@
 # Variables (override on command line):
 #   WINE_SRC    — Wine source directory (default: wine-src)
 #   BUILD_DIR   — build output directory (default: $(WINE_SRC)/build)
-#   WINE_TAG    — Wine git tag to clone (default: wine-11.0)
+#   WINE_TAG    — Wine git tag to clone (default: wine-11.5)
 #   PREFIX      — Wine install prefix (default: /opt/wine)
 #   NCPU        — parallel build jobs (auto-detected)
 
-WINE_TAG    ?= wine-11.0
+WINE_TAG    ?= wine-11.5
 WINE_SRC    ?= wine-src
 BUILD_DIR   ?= $(WINE_SRC)/build
 PREFIX      ?= /opt/wine

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git submodule:*)",
+      "Bash(wc:*)",
+      "Bash(git config:*)",
+      "Bash(gh run:*)",
+      "Bash(gh api:*)"
+    ]
+  }
+}

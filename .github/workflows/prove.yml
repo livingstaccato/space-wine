@@ -182,7 +182,7 @@ jobs:
 
       - name: Clone Wine 11.0 and apply patches
         run: |
-          git clone --depth 1 --branch wine-11.0 https://gitlab.winehq.org/wine/wine.git wine-src
+          git clone --depth 1 --branch wine-11.5 https://gitlab.winehq.org/wine/wine.git wine-src
           cd wine-src
           git apply ../patches/ntdll-fix-NtLockFile-FIXMEs.patch
           git apply ../patches/win32u-fix-OEM_CHARSET.patch
@@ -296,7 +296,7 @@ jobs:
           cd ${{ github.workspace }}/wine-install
           ARCH=$(uname -m)
           OS_ID=$(lsb_release -rs | tr -d '.')
-          TARBALL="wine-space-wine-11.0-ubuntu${OS_ID}-${ARCH}.tar.xz"
+          TARBALL="wine-space-wine-11.5-ubuntu${OS_ID}-${ARCH}.tar.xz"
           tar cJf "${{ github.workspace }}/$TARBALL" opt/
           ls -lh "${{ github.workspace }}/$TARBALL"
           echo "TARBALL=$TARBALL" >> $GITHUB_ENV
@@ -351,7 +351,7 @@ jobs:
 
       - name: Clone Wine 11.0 and apply patches
         run: |
-          git clone --depth 1 --branch wine-11.0 https://gitlab.winehq.org/wine/wine.git wine-src
+          git clone --depth 1 --branch wine-11.5 https://gitlab.winehq.org/wine/wine.git wine-src
           cd wine-src
           git apply ../patches/ntdll-fix-NtLockFile-FIXMEs.patch
           git apply ../patches/win32u-fix-OEM_CHARSET.patch
@@ -456,7 +456,7 @@ jobs:
           cd ${{ github.workspace }}/wine-install
           ARCH=$(uname -m)
           OS_VER=$(sw_vers -productVersion | cut -d. -f1)
-          TARBALL="wine-space-wine-11.0-macos${OS_VER}-${ARCH}.tar.xz"
+          TARBALL="wine-space-wine-11.5-macos${OS_VER}-${ARCH}.tar.xz"
           tar cJf "${{ github.workspace }}/$TARBALL" opt/
           ls -lh "${{ github.workspace }}/$TARBALL"
           echo "TARBALL=$TARBALL" >> $GITHUB_ENV

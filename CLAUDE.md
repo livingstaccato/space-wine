@@ -49,7 +49,7 @@ WINEDEBUG=-fixme+edit,-fixme+font ...
 
 Ports: 2002 (telnet), 2003 (admin). Headless: see [docs/twgs-headless.md](docs/twgs-headless.md).
 
-## Patches (branch: wine-11.0-patched)
+## Patches (tested against wine-11.5)
 
 | Patch file | File(s) modified | What it fixes |
 |---|---|---|
@@ -89,7 +89,7 @@ GitHub Actions workflow `prove.yml` runs on every push:
 ## Repository Structure
 
 ```
-wine/                  # Wine source (submodule, branch wine-11.0-clean)
+wine/                  # Wine source (submodule)
 patches/               # git apply compatible patch files
 tests/                 # locktest.c, lockstress.c, fonttest.c, edittest.c
 results/               # Captured before/after test output
