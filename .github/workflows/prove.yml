@@ -194,7 +194,7 @@ jobs:
       - name: Build patched Wine
         run: |
           mkdir -p wine-src/build && cd wine-src/build
-          ../configure --enable-archs=x86_64,i386 --with-mingw 2>&1 | tail -20
+          ../configure --enable-archs=x86_64,i386 --with-mingw --prefix=/opt/wine 2>&1 | tail -20
           make -j$(nproc) 2>&1 | tail -3
           ls -la dlls/ntdll/ntdll.so dlls/win32u/win32u.so server/wineserver
 
@@ -291,12 +291,13 @@ jobs:
       - name: Package Wine install tarball
         run: |
           cd wine-src/build
-          make install DESTDIR=$GITHUB_WORKSPACE/wine-install 2>&1 | tail -3
-          cd $GITHUB_WORKSPACE/wine-install
+          make install DESTDIR=${{ github.workspace }}/wine-install 2>&1 | tail -3
+          ls -d ${{ github.workspace }}/wine-install/opt/wine/bin/wine
+          cd ${{ github.workspace }}/wine-install
           ARCH=$(uname -m)
           TARBALL="wine-space-wine-11.0-linux-${ARCH}.tar.xz"
-          tar cJf "$GITHUB_WORKSPACE/$TARBALL" opt/
-          ls -lh "$GITHUB_WORKSPACE/$TARBALL"
+          tar cJf "${{ github.workspace }}/$TARBALL" opt/
+          ls -lh "${{ github.workspace }}/$TARBALL"
           echo "TARBALL=$TARBALL" >> $GITHUB_ENV
 
       - uses: actions/upload-artifact@v4
@@ -362,7 +363,7 @@ jobs:
         run: |
           export PATH="$(brew --prefix bison)/bin:$PATH"
           mkdir -p wine-src/build && cd wine-src/build
-          $ARCH_PREFIX ../configure --enable-archs=x86_64,i386 --with-mingw \
+          $ARCH_PREFIX ../configure --enable-archs=x86_64,i386 --with-mingw --prefix=/opt/wine \
             FREETYPE_CFLAGS="$FREETYPE_CFLAGS" FREETYPE_LIBS="$FREETYPE_LIBS" 2>&1 | tail -20
           $ARCH_PREFIX make -j$(sysctl -n hw.ncpu) 2>&1 | tail -3
           ls -la dlls/ntdll/ntdll.so dlls/win32u/win32u.so server/wineserver
@@ -444,15 +445,19 @@ jobs:
         run: |
           export PATH="$(brew --prefix bison)/bin:$PATH"
           cd wine-src/build
-          $ARCH_PREFIX make install DESTDIR=$GITHUB_WORKSPACE/wine-install 2>&1 | tail -3
+          $ARCH_PREFIX make install DESTDIR=${{ github.workspace }}/wine-install 2>&1 | tail -3
           # Copy FreeType into the install
-          cp $FT_DYLD_PATH/libfreetype* $GITHUB_WORKSPACE/wine-install/opt/wine/lib/ 2>/dev/null || true
-          cd $GITHUB_WORKSPACE/wine-install
+          cp $FT_DYLD_PATH/libfreetype* ${{ github.workspace }}/wine-install/opt/wine/lib/ 2>/dev/null || true
+          # Fix FreeType install_name to final path
+          install_name_tool -id /opt/wine/lib/libfreetype.6.dylib \
+            ${{ github.workspace }}/wine-install/opt/wine/lib/libfreetype.6.dylib 2>/dev/null || true
+          ls -d ${{ github.workspace }}/wine-install/opt/wine/bin/wine
+          cd ${{ github.workspace }}/wine-install
           ARCH=$(uname -m)
           OS_VER=$(sw_vers -productVersion | cut -d. -f1)
           TARBALL="wine-space-wine-11.0-macos${OS_VER}-${ARCH}.tar.xz"
-          tar cJf "$GITHUB_WORKSPACE/$TARBALL" opt/
-          ls -lh "$GITHUB_WORKSPACE/$TARBALL"
+          tar cJf "${{ github.workspace }}/$TARBALL" opt/
+          ls -lh "${{ github.workspace }}/$TARBALL"
           echo "TARBALL=$TARBALL" >> $GITHUB_ENV
 
       - uses: actions/upload-artifact@v4
