@@ -34,14 +34,19 @@ ifeq ($(UNAME_S),Darwin)
   endif
 endif
 
-# Patches (applied in order)
+# Patches — upstream-submittable bug fixes (applied in order)
 PATCHES := \
 	patches/ntdll-fix-NtLockFile-FIXMEs.patch \
 	patches/win32u-fix-OEM_CHARSET.patch \
 	patches/kernelbase-fix-UnlockFileEx.patch \
 	patches/user32-fix-edit-BuildLineDefs.patch \
 	patches/comctl32-fix-edit-BuildLineDefs.patch \
+	patches/wineserver-fix-lock-fd-leak.patch \
 	patches/kernel32-tests-expand-lockfile.patch
+
+# Workarounds — platform-specific hacks not suitable for upstream
+WORKAROUNDS := \
+	workarounds/wow64cpu-rosetta2-workaround.patch
 
 # Test executables
 TEST_EXES := build/locktest.exe build/lockstress.exe build/fonttest.exe build/edittest.exe build/fdleaktest.exe
@@ -92,8 +97,8 @@ $(WINE_SRC)/.git:
 
 # ── Apply patches ─────────────────────────────────────────────────
 
-.patch-applied: $(PATCHES) | $(WINE_SRC)/.git
-	cd $(WINE_SRC) && for p in $(addprefix ../,$(PATCHES)); do git apply "$$p"; done
+.patch-applied: $(PATCHES) $(WORKAROUNDS) | $(WINE_SRC)/.git
+	cd $(WINE_SRC) && for p in $(addprefix ../,$(PATCHES) $(WORKAROUNDS)); do git apply "$$p"; done
 	touch .patch-applied
 
 patch: .patch-applied
@@ -103,8 +108,9 @@ patch: .patch-applied
 $(BUILD_DIR)/Makefile: .patch-applied
 	mkdir -p $(BUILD_DIR)
 ifeq ($(UNAME_S),Darwin)
-	cd $(BUILD_DIR) && $(ARCH_PREFIX) ../configure \
+	cd $(BUILD_DIR) && PATH="/opt/homebrew/opt/bison/bin:$(PATH)" $(ARCH_PREFIX) ../configure \
 		--enable-archs=x86_64,i386 --with-mingw --prefix=$(PREFIX) \
+		CC="clang -arch x86_64" CXX="clang++ -arch x86_64" \
 		FREETYPE_CFLAGS="-I/tmp/freetype-x86/include/freetype2" \
 		FREETYPE_LIBS="-L/tmp/freetype-x86/lib -lfreetype"
 else
@@ -113,7 +119,11 @@ else
 endif
 
 $(BUILD_DIR)/server/wineserver: $(BUILD_DIR)/Makefile
+ifeq ($(UNAME_S),Darwin)
+	cd $(BUILD_DIR) && PATH="/opt/homebrew/opt/bison/bin:$(PATH)" $(ARCH_PREFIX) make -j$(NCPU)
+else
 	cd $(BUILD_DIR) && $(ARCH_PREFIX) make -j$(NCPU)
+endif
 
 build: $(BUILD_DIR)/server/wineserver
 

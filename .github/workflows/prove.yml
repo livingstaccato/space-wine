@@ -180,7 +180,7 @@ jobs:
           x86_64-w64-mingw32-gcc -o edittest.exe tests/edittest.c -lgdi32 -luser32
           x86_64-w64-mingw32-gcc -o fdleaktest.exe tests/fdleaktest.c
 
-      - name: Clone Wine 11.0 and apply patches
+      - name: Clone Wine 11.5 and apply patches
         run: |
           git clone --depth 1 --branch wine-11.5 https://gitlab.winehq.org/wine/wine.git wine-src
           cd wine-src
@@ -189,6 +189,7 @@ jobs:
           git apply ../patches/kernelbase-fix-UnlockFileEx.patch
           git apply ../patches/user32-fix-edit-BuildLineDefs.patch
           git apply ../patches/comctl32-fix-edit-BuildLineDefs.patch
+          git apply ../patches/wineserver-fix-lock-fd-leak.patch
           git apply ../patches/kernel32-tests-expand-lockfile.patch
 
       - name: Build patched Wine
@@ -349,7 +350,7 @@ jobs:
           x86_64-w64-mingw32-gcc -o edittest.exe tests/edittest.c -lgdi32 -luser32
           x86_64-w64-mingw32-gcc -o fdleaktest.exe tests/fdleaktest.c
 
-      - name: Clone Wine 11.0 and apply patches
+      - name: Clone Wine 11.5 and apply patches
         run: |
           git clone --depth 1 --branch wine-11.5 https://gitlab.winehq.org/wine/wine.git wine-src
           cd wine-src
@@ -358,7 +359,10 @@ jobs:
           git apply ../patches/kernelbase-fix-UnlockFileEx.patch
           git apply ../patches/user32-fix-edit-BuildLineDefs.patch
           git apply ../patches/comctl32-fix-edit-BuildLineDefs.patch
+          git apply ../patches/wineserver-fix-lock-fd-leak.patch
           git apply ../patches/kernel32-tests-expand-lockfile.patch
+          # Rosetta2 workaround — only needed on macOS ARM64
+          git apply ../workarounds/wow64cpu-rosetta2-workaround.patch
 
       - name: Build patched Wine
         run: |

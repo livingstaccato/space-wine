@@ -58,7 +58,14 @@ Ports: 2002 (telnet), 2003 (admin). Headless: see [docs/twgs-headless.md](docs/t
 | `win32u-fix-OEM_CHARSET.patch` | `dlls/win32u/font.c` | "Untranslated charset 255" FIXME for DOS terminal fonts |
 | `user32-fix-edit-BuildLineDefs.patch` | `dlls/user32/edit.c` | "modification occurred outside buffer" FIXME on rapid text updates |
 | `comctl32-fix-edit-BuildLineDefs.patch` | `dlls/comctl32_v6/edit.c` | Same edit control fix for comctl32_v6 |
+| `wineserver-fix-lock-fd-leak.patch` | `server/fd.c` | Close unix FDs immediately in inode_add_closed_fd() when locks exist, preventing FD leak under contention |
 | `kernel32-tests-expand-lockfile.patch` | `dlls/kernel32/tests/file.c` | Expanded lock test coverage for Wine test suite (51 checks) |
+
+## Workarounds (not upstream-submittable)
+
+| Patch file | File(s) modified | What it fixes |
+|---|---|---|
+| `wow64cpu-rosetta2-workaround.patch` | `dlls/wow64cpu/cpu.c` | Rosetta2 SIGUSR1 race workaround: use lretq instead of ljmp in 32→64 thunks (CW HACK 20760, from CrossOver) |
 
 ## Test Tools
 
