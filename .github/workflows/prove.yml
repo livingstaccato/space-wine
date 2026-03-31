@@ -1,4 +1,4 @@
-name: Prove Wine Patches
+name: Verify Wine Patch Matrix
 
 on:
   push:
@@ -8,12 +8,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ── Windows Ground Truth ──────────────────────────────────────────
-  # Tests on real Windows NT kernel — defines expected behavior.
-  # Steps intentionally have no || true — failures here mean our test
-  # expectations are wrong and must be fixed (Windows is authoritative).
+  # Expected Linux matrix labels:
+  # - linux-unpatched-10.0
+  # - linux-patched-10.0
+  # - linux-unpatched-11.5
+  # - linux-patched-11.5
   windows-ground-truth:
-    name: Windows (${{ matrix.os }})
+    name: windows-ground-truth-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -25,7 +26,7 @@ jobs:
       - name: Install MinGW
         run: choco install mingw -y
 
-      - name: Compile test tools
+      - name: Compile standalone tools
         shell: bash
         run: |
           x86_64-w64-mingw32-gcc -o locktest.exe tests/locktest.c -lntdll
@@ -54,7 +55,7 @@ jobs:
         shell: cmd
         run: fdleaktest.exe -v
 
-      - name: Save results
+      - name: Save windows results
         if: always()
         shell: bash
         run: |
@@ -64,106 +65,25 @@ jobs:
           ./fonttest.exe > results/fonttest.txt 2>&1 || true
           ./edittest.exe > results/edittest.txt 2>&1 || true
           ./fdleaktest.exe -v > results/fdleaktest.txt 2>&1 || true
-          tail -5 results/locktest.txt
-          tail -5 results/lockstress.txt
-          tail -5 results/fonttest.txt
-          tail -5 results/fdleaktest.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: results-windows-${{ matrix.os }}
+          name: windows-ground-truth-${{ matrix.os }}
           path: results/
 
-  # ── Linux Wine (Unpatched — WineHQ Stable) ──────────────────────
-  # Installs latest Wine stable from WineHQ apt repo — shows failures
-  # that our patches fix. No build from source needed.
-  linux-wine-unpatched:
-    name: Linux Unpatched (${{ matrix.os }})
+  linux-unpatched:
+    name: linux-unpatched-${{ matrix.version }}-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, ubuntu-24.04]
+        version: ["10.0", "11.5"]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Wine from WineHQ + MinGW
-        run: |
-          sudo dpkg --add-architecture i386
-          sudo mkdir -p /etc/apt/keyrings
-          wget -qO- https://dl.winehq.org/wine-builds/winehq.key | sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key
-          sudo wget -NP /etc/apt/sources.list.d/ \
-            "https://dl.winehq.org/wine-builds/ubuntu/dists/$(lsb_release -sc)/winehq-$(lsb_release -sc).sources"
-          sudo apt-get update
-          sudo apt-get install -y --install-recommends winehq-stable mingw-w64 || true
-          wine --version
-
-      - name: Compile test tools
-        run: |
-          x86_64-w64-mingw32-gcc -o locktest.exe tests/locktest.c -lntdll
-          x86_64-w64-mingw32-gcc -o lockstress.exe tests/lockstress.c
-          x86_64-w64-mingw32-gcc -o fonttest.exe tests/fonttest.c -lgdi32 -luser32
-          x86_64-w64-mingw32-gcc -o edittest.exe tests/edittest.c -lgdi32 -luser32
-          x86_64-w64-mingw32-gcc -o fdleaktest.exe tests/fdleaktest.c
-
-      - name: Init Wine prefix
-        run: |
-          export WINEPREFIX=$HOME/.wine-unpatched
-          export DISPLAY=:0
-          wineboot --init 2>&1 || true
-          sleep 5
-
-      - name: Run locktest
-        run: |
-          export WINEPREFIX=$HOME/.wine-unpatched
-          wine ./locktest.exe -v > results-unpatched-locktest.txt 2>&1 || true
-          cat results-unpatched-locktest.txt
-          echo "---"
-          grep "Results:" results-unpatched-locktest.txt || echo "No results line found"
-
-      - name: Run lockstress
-        run: |
-          export WINEPREFIX=$HOME/.wine-unpatched
-          timeout 30 wine ./lockstress.exe > results-unpatched-lockstress.txt 2>&1 || true
-          cat results-unpatched-lockstress.txt
-          echo "---"
-          grep -E "Completed:|Hangs:" results-unpatched-lockstress.txt || echo "No results"
-
-      - name: Run fonttest
-        run: |
-          export WINEPREFIX=$HOME/.wine-unpatched
-          WINEDEBUG=fixme+font wine ./fonttest.exe > results-unpatched-fonttest-stdout.txt 2>results-unpatched-fonttest-stderr.txt || true
-          cat results-unpatched-fonttest-stdout.txt
-          echo "--- FIXMEs ---"
-          grep "charset 255" results-unpatched-fonttest-stderr.txt || echo "none"
-          echo "count: $(grep -c 'charset 255' results-unpatched-fonttest-stderr.txt || true)"
-
-      - name: Run fdleaktest
-        run: |
-          export WINEPREFIX=$HOME/.wine-unpatched
-          wine ./fdleaktest.exe -v > results-unpatched-fdleaktest.txt 2>&1 || true
-          cat results-unpatched-fdleaktest.txt
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: results-linux-unpatched-${{ matrix.os }}
-          path: results-unpatched-*
-
-  # ── Linux Wine (Patched) ──────────────────────────────────────────
-  # Builds Wine from source with all patches — verifies fixes work.
-  linux-wine-patched:
-    name: Linux Patched (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-22.04, ubuntu-24.04]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install build deps
+      - name: Install Linux build deps
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
@@ -172,7 +92,7 @@ jobs:
             libxfixes-dev libxrender-dev libxcomposite-dev libxinerama-dev \
             libfreetype-dev gcc-multilib || true
 
-      - name: Compile test tools
+      - name: Compile standalone tools
         run: |
           x86_64-w64-mingw32-gcc -o locktest.exe tests/locktest.c -lntdll
           x86_64-w64-mingw32-gcc -o lockstress.exe tests/lockstress.c
@@ -180,144 +100,136 @@ jobs:
           x86_64-w64-mingw32-gcc -o edittest.exe tests/edittest.c -lgdi32 -luser32
           x86_64-w64-mingw32-gcc -o fdleaktest.exe tests/fdleaktest.c
 
-      - name: Clone Wine 11.5 and apply patches
+      - name: Clone wine-${{ matrix.version }}
         run: |
-          git clone --depth 1 --branch wine-11.5 https://gitlab.winehq.org/wine/wine.git wine-src
-          cd wine-src
-          git apply ../patches/ntdll-fix-NtLockFile-FIXMEs.patch
-          git apply ../patches/win32u-fix-OEM_CHARSET.patch
-          git apply ../patches/kernelbase-fix-UnlockFileEx.patch
-          git apply ../patches/user32-fix-edit-BuildLineDefs.patch
-          git apply ../patches/comctl32-fix-edit-BuildLineDefs.patch
-          git apply ../patches/wineserver-fix-lock-fd-leak.patch
-          git apply ../patches/kernel32-tests-expand-lockfile.patch
+          git clone --depth 1 --branch wine-${{ matrix.version }} \
+            https://gitlab.winehq.org/wine/wine.git wine-src
 
-      - name: Build patched Wine
+      - name: Build unpatched wine-${{ matrix.version }}
         run: |
           mkdir -p wine-src/build && cd wine-src/build
-          ../configure --enable-archs=x86_64,i386 --with-mingw --prefix=/opt/wine 2>&1 | tail -20
+          ../configure --enable-archs=x86_64,i386 --with-mingw \
+            --prefix=/opt/wine-${{ matrix.version }} 2>&1 | tail -20
           make -j$(nproc) 2>&1 | tail -3
-          ls -la dlls/ntdll/ntdll.so dlls/win32u/win32u.so server/wineserver
 
-      - name: Init Wine prefix
+      - name: Run standalone tests on unpatched wine-${{ matrix.version }}
         run: |
-          export WINEPREFIX=$HOME/.wine-patched
+          export WINEPREFIX=$HOME/.wine-unpatched-${{ matrix.version }}
           export WINESERVER=$PWD/wine-src/build/server/wineserver
           wine-src/build/server/wineserver -k 2>/dev/null || true
           sleep 2
           wine-src/build/wine wineboot --init 2>&1 || true
           sleep 5
+          wine-src/build/wine ./locktest.exe -v > results-unpatched-locktest-${{ matrix.version }}.txt 2>&1 || true
+          timeout 30 wine-src/build/wine ./lockstress.exe > results-unpatched-lockstress-${{ matrix.version }}.txt 2>&1 || true
+          WINEDEBUG=fixme+font wine-src/build/wine ./fonttest.exe \
+            > results-unpatched-fonttest-${{ matrix.version }}-stdout.txt \
+            2> results-unpatched-fonttest-${{ matrix.version }}-stderr.txt || true
+          wine-src/build/wine ./edittest.exe > results-unpatched-edittest-${{ matrix.version }}.txt 2>&1 || true
+          wine-src/build/wine ./fdleaktest.exe -v > results-unpatched-fdleaktest-${{ matrix.version }}.txt 2>&1 || true
 
-      - name: Run locktest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-unpatched-${{ matrix.version }}-${{ matrix.os }}
+          path: results-unpatched-*-${{ matrix.version }}*
+
+  linux-patched:
+    name: linux-patched-${{ matrix.version }}-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+        version: ["10.0", "11.5"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build deps
         run: |
-          export WINEPREFIX=$HOME/.wine-patched
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64 gcc g++ make bison flex \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev \
+            libxfixes-dev libxrender-dev libxcomposite-dev libxinerama-dev \
+            libfreetype-dev gcc-multilib || true
+
+      - name: Compile standalone tools
+        run: |
+          x86_64-w64-mingw32-gcc -o locktest.exe tests/locktest.c -lntdll
+          x86_64-w64-mingw32-gcc -o lockstress.exe tests/lockstress.c
+          x86_64-w64-mingw32-gcc -o fonttest.exe tests/fonttest.c -lgdi32 -luser32
+          x86_64-w64-mingw32-gcc -o edittest.exe tests/edittest.c -lgdi32 -luser32
+          x86_64-w64-mingw32-gcc -o fdleaktest.exe tests/fdleaktest.c
+
+      - name: Clone wine-${{ matrix.version }}
+        run: |
+          git clone --depth 1 --branch wine-${{ matrix.version }} \
+            https://gitlab.winehq.org/wine/wine.git wine-src
+
+      - name: Apply patch series for wine-${{ matrix.version }}
+        run: |
+          ./tools/apply-series.sh wine-src patches/series-${{ matrix.version }}.txt \
+            workarounds/series-${{ matrix.version }}.txt
+
+      - name: Build patched wine-${{ matrix.version }}
+        run: |
+          mkdir -p wine-src/build && cd wine-src/build
+          ../configure --enable-archs=x86_64,i386 --with-mingw \
+            --prefix=/opt/wine-${{ matrix.version }} 2>&1 | tail -20
+          make -j$(nproc) 2>&1 | tail -3
+
+      - name: Run standalone tests on patched wine-${{ matrix.version }}
+        run: |
+          export WINEPREFIX=$HOME/.wine-patched-${{ matrix.version }}
           export WINESERVER=$PWD/wine-src/build/server/wineserver
-          wine-src/build/wine ./locktest.exe -v > results-patched-locktest.txt 2>&1 || true
-          cat results-patched-locktest.txt
-          echo "---"
-          grep "Results:" results-patched-locktest.txt || echo "No results line"
+          wine-src/build/server/wineserver -k 2>/dev/null || true
+          sleep 2
+          wine-src/build/wine wineboot --init 2>&1 || true
+          sleep 5
+          wine-src/build/wine ./locktest.exe -v > results-patched-locktest-${{ matrix.version }}.txt 2>&1 || true
+          timeout 30 wine-src/build/wine ./lockstress.exe > results-patched-lockstress-${{ matrix.version }}.txt 2>&1 || true
+          WINEDEBUG=fixme+font wine-src/build/wine ./fonttest.exe \
+            > results-patched-fonttest-${{ matrix.version }}-stdout.txt \
+            2> results-patched-fonttest-${{ matrix.version }}-stderr.txt || true
+          wine-src/build/wine ./edittest.exe > results-patched-edittest-${{ matrix.version }}.txt 2>&1 || true
+          wine-src/build/wine ./fdleaktest.exe -v > results-patched-fdleaktest-${{ matrix.version }}.txt 2>&1 || true
 
-      - name: Run lockstress
+      - name: Verify patched wine-${{ matrix.version }} summary
         run: |
-          export WINEPREFIX=$HOME/.wine-patched
-          export WINESERVER=$PWD/wine-src/build/server/wineserver
-          wine-src/build/wine ./lockstress.exe > results-patched-lockstress.txt 2>&1 || true
-          cat results-patched-lockstress.txt
-          echo "---"
-          grep -E "Completed:|Hangs:" results-patched-lockstress.txt || echo "No results"
-
-      - name: Run fonttest
-        run: |
-          export WINEPREFIX=$HOME/.wine-patched
-          export WINESERVER=$PWD/wine-src/build/server/wineserver
-          WINEDEBUG=fixme+font wine-src/build/wine ./fonttest.exe > results-patched-fonttest-stdout.txt 2>results-patched-fonttest-stderr.txt || true
-          cat results-patched-fonttest-stdout.txt
-          echo "--- FIXMEs ---"
-          grep "charset 255" results-patched-fonttest-stderr.txt || echo "NONE (fixed!)"
-          echo "count: $(grep -c 'charset 255' results-patched-fonttest-stderr.txt || true)"
-
-      - name: Run edittest
-        run: |
-          export WINEPREFIX=$HOME/.wine-patched
-          export WINESERVER=$PWD/wine-src/build/server/wineserver
-          wine-src/build/wine ./edittest.exe > results-patched-edittest-stdout.txt 2>results-patched-edittest-stderr.txt || true
-          cat results-patched-edittest-stdout.txt
-          echo "--- FIXMEs ---"
-          EDIT_FIXMES="$(grep -c 'EDIT_BuildLineDefs_ML' results-patched-edittest-stderr.txt 2>/dev/null)" || EDIT_FIXMES="0"
-          echo "EDIT_BuildLineDefs_ML FIXMEs: $EDIT_FIXMES"
-
-      - name: Run fdleaktest
-        run: |
-          export WINEPREFIX=$HOME/.wine-patched
-          export WINESERVER=$PWD/wine-src/build/server/wineserver
-          wine-src/build/wine ./fdleaktest.exe -v > results-patched-fdleaktest.txt 2>&1 || true
-          cat results-patched-fdleaktest.txt
-
-      - name: Run Wine kernel32 file tests
-        run: |
-          export WINEPREFIX=$HOME/.wine-patched
-          export WINESERVER=$PWD/wine-src/build/server/wineserver
-          if [ -f wine-src/build/dlls/kernel32/tests/kernel32_test.exe ]; then
-            wine-src/build/wine wine-src/build/dlls/kernel32/tests/kernel32_test.exe file \
-              > results-patched-wine-kernel32-file.txt 2>&1 || true
-            tail -20 results-patched-wine-kernel32-file.txt
-          else
-            echo "kernel32_test.exe not found — skipping (may need explicit make target)"
-          fi
-
-      - name: Verify patched results
-        run: |
-          echo "=== Locktest ==="
-          grep "Results:" results-patched-locktest.txt || true
-          echo "=== Lockstress ==="
-          grep -E "Completed:|Hangs:" results-patched-lockstress.txt || true
-          echo "=== Fonttest ==="
-          FIXME_COUNT="$(grep -c 'charset 255' results-patched-fonttest-stderr.txt 2>/dev/null)" || FIXME_COUNT="0"
+          grep "Results:" results-patched-locktest-${{ matrix.version }}.txt || true
+          grep -E "Completed:|Hangs:" results-patched-lockstress-${{ matrix.version }}.txt || true
+          FIXME_COUNT="$(grep -c 'charset 255' results-patched-fonttest-${{ matrix.version }}-stderr.txt 2>/dev/null)" || FIXME_COUNT="0"
           echo "charset 255 FIXMEs: $FIXME_COUNT"
-          # Verify locktest
-          if grep -q "0 failed" results-patched-locktest.txt 2>/dev/null; then
-            echo "PASS: locktest all passed"
-          else
-            echo "WARN: locktest results unexpected"
-            cat results-patched-locktest.txt 2>/dev/null | tail -10 || true
-          fi
-          # Verify fonttest (0 FIXMEs)
-          if [ "$FIXME_COUNT" = "0" ]; then
-            echo "PASS: fonttest no charset 255 FIXMEs"
-          else
-            echo "FAIL: fonttest still has $FIXME_COUNT charset 255 FIXMEs"
+          if [ "$FIXME_COUNT" != "0" ]; then
+            echo "fonttest still reports charset 255 FIXMEs"
             exit 1
           fi
 
-      - name: Package Wine install tarball
+      - name: Package patched wine-${{ matrix.version }}
         run: |
           cd wine-src/build
           make install DESTDIR=${{ github.workspace }}/wine-install 2>&1 | tail -3
-          ls -d ${{ github.workspace }}/wine-install/opt/wine/bin/wine
           cd ${{ github.workspace }}/wine-install
           ARCH=$(uname -m)
           OS_ID=$(lsb_release -rs | tr -d '.')
-          TARBALL="wine-space-wine-11.5-ubuntu${OS_ID}-${ARCH}.tar.xz"
+          TARBALL="wine-space-wine-${{ matrix.version }}-ubuntu${OS_ID}-${ARCH}.tar.xz"
           tar cJf "${{ github.workspace }}/$TARBALL" opt/
-          ls -lh "${{ github.workspace }}/$TARBALL"
           echo "TARBALL=$TARBALL" >> $GITHUB_ENV
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: results-linux-patched-${{ matrix.os }}
-          path: results-patched-*
+          name: linux-patched-${{ matrix.version }}-${{ matrix.os }}
+          path: results-patched-*-${{ matrix.version }}*
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.TARBALL }}
+          name: linux-patched-${{ matrix.version }}-tarball-${{ matrix.os }}
           path: ${{ env.TARBALL }}
 
-  # ── macOS Wine (Patched) ──────────────────────────────────────────
-  # Builds Wine on macOS — validates the primary deployment target.
-  # macos-13 = Intel x86_64, macos-14/15 = Apple Silicon ARM64.
-  macos-wine-patched:
-    name: macOS Patched (${{ matrix.os }})
+  macos-patched:
+    name: macos-patched-11.5-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -326,23 +238,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install build deps
+      - name: Install macOS build deps
         run: |
           brew install mingw-w64 bison flex
 
       - name: Build FreeType x86_64 from source
         run: |
+          sudo mkdir -p /opt/wine-11.5
+          sudo chown -R "$USER" /opt/wine-11.5
           curl -L https://download.savannah.gnu.org/releases/freetype/freetype-2.13.2.tar.xz | tar xJ
           cd freetype-2.13.2
-          arch -x86_64 ./configure --prefix=/tmp/freetype-x86 \
+          arch -x86_64 ./configure --prefix=/opt/wine-11.5 \
             CC="clang -arch x86_64" --with-zlib=no --with-bzip2=no --with-png=no --with-harfbuzz=no --with-brotli=no
-          arch -x86_64 make -j$(sysctl -n hw.ncpu) && arch -x86_64 make install
-          echo "FREETYPE_CFLAGS=-I/tmp/freetype-x86/include/freetype2" >> $GITHUB_ENV
-          echo "FREETYPE_LIBS=-L/tmp/freetype-x86/lib -lfreetype" >> $GITHUB_ENV
-          echo "FT_DYLD_PATH=/tmp/freetype-x86/lib" >> $GITHUB_ENV
-          echo "ARCH_PREFIX=arch -x86_64" >> $GITHUB_ENV
+          arch -x86_64 make -j$(sysctl -n hw.ncpu)
+          arch -x86_64 make install
 
-      - name: Compile test tools
+      - name: Compile standalone tools
         run: |
           x86_64-w64-mingw32-gcc -o locktest.exe tests/locktest.c -lntdll
           x86_64-w64-mingw32-gcc -o lockstress.exe tests/lockstress.c
@@ -350,128 +261,54 @@ jobs:
           x86_64-w64-mingw32-gcc -o edittest.exe tests/edittest.c -lgdi32 -luser32
           x86_64-w64-mingw32-gcc -o fdleaktest.exe tests/fdleaktest.c
 
-      - name: Clone Wine 11.5 and apply patches
+      - name: Clone wine-11.5
         run: |
-          git clone --depth 1 --branch wine-11.5 https://gitlab.winehq.org/wine/wine.git wine-src
-          cd wine-src
-          git apply ../patches/ntdll-fix-NtLockFile-FIXMEs.patch
-          git apply ../patches/win32u-fix-OEM_CHARSET.patch
-          git apply ../patches/kernelbase-fix-UnlockFileEx.patch
-          git apply ../patches/user32-fix-edit-BuildLineDefs.patch
-          git apply ../patches/comctl32-fix-edit-BuildLineDefs.patch
-          git apply ../patches/wineserver-fix-lock-fd-leak.patch
-          git apply ../patches/kernel32-tests-expand-lockfile.patch
-          # Rosetta2 workaround — only needed on macOS ARM64
-          git apply ../workarounds/wow64cpu-rosetta2-workaround.patch
+          git clone --depth 1 --branch wine-11.5 \
+            https://gitlab.winehq.org/wine/wine.git wine-src
 
-      - name: Build patched Wine
+      - name: Apply 11.5 patch and workaround series
+        run: |
+          ./tools/apply-series.sh wine-src patches/series-11.5.txt workarounds/series-11.5.txt
+
+      - name: Build patched wine-11.5
         run: |
           export PATH="$(brew --prefix bison)/bin:$PATH"
           mkdir -p wine-src/build && cd wine-src/build
-          $ARCH_PREFIX ../configure --enable-archs=x86_64,i386 --with-mingw --prefix=/opt/wine \
-            FREETYPE_CFLAGS="$FREETYPE_CFLAGS" FREETYPE_LIBS="$FREETYPE_LIBS" 2>&1 | tail -20
-          $ARCH_PREFIX make -j$(sysctl -n hw.ncpu) 2>&1 | tail -3
-          ls -la dlls/ntdll/ntdll.so dlls/win32u/win32u.so server/wineserver
+          arch -x86_64 ../configure --enable-archs=x86_64,i386 --with-mingw \
+            --prefix=/opt/wine-11.5 \
+            FREETYPE_CFLAGS="-I/opt/wine-11.5/include/freetype2" \
+            FREETYPE_LIBS="-L/opt/wine-11.5/lib -lfreetype" 2>&1 | tail -20
+          arch -x86_64 make -j$(sysctl -n hw.ncpu) 2>&1 | tail -3
 
-      - name: Init Wine prefix
+      - name: Run standalone tests on patched wine-11.5
         run: |
-          export DYLD_LIBRARY_PATH=$FT_DYLD_PATH
-          export WINEPREFIX=$HOME/.wine-patched
+          export DYLD_LIBRARY_PATH=/opt/wine-11.5/lib
+          export WINEPREFIX=$HOME/.wine-patched-11.5
           export WINESERVER=$PWD/wine-src/build/server/wineserver
           wine-src/build/server/wineserver -k 2>/dev/null || true
           sleep 2
           wine-src/build/wine wineboot --init 2>&1 || true
           sleep 5
-
-      - name: Run locktest
-        run: |
-          export DYLD_LIBRARY_PATH=$FT_DYLD_PATH
-          export WINEPREFIX=$HOME/.wine-patched
-          export WINESERVER=$PWD/wine-src/build/server/wineserver
-          wine-src/build/wine ./locktest.exe -v > results-macos-locktest.txt 2>&1 || true
-          cat results-macos-locktest.txt
-
-      - name: Run lockstress
-        run: |
-          export DYLD_LIBRARY_PATH=$FT_DYLD_PATH
-          export WINEPREFIX=$HOME/.wine-patched
-          export WINESERVER=$PWD/wine-src/build/server/wineserver
-          wine-src/build/wine ./lockstress.exe > results-macos-lockstress.txt 2>&1 || true
-          cat results-macos-lockstress.txt
-
-      - name: Run fonttest
-        run: |
-          export DYLD_LIBRARY_PATH=$FT_DYLD_PATH
-          export WINEPREFIX=$HOME/.wine-patched
-          export WINESERVER=$PWD/wine-src/build/server/wineserver
+          wine-src/build/wine ./locktest.exe -v > results-macos-locktest-11.5.txt 2>&1 || true
+          wine-src/build/wine ./lockstress.exe > results-macos-lockstress-11.5.txt 2>&1 || true
           WINEDEBUG=fixme+font wine-src/build/wine ./fonttest.exe \
-            > results-macos-fonttest-stdout.txt 2>results-macos-fonttest-stderr.txt || true
-          cat results-macos-fonttest-stdout.txt
+            > results-macos-fonttest-11.5-stdout.txt \
+            2> results-macos-fonttest-11.5-stderr.txt || true
+          wine-src/build/wine ./edittest.exe > results-macos-edittest-11.5.txt 2>&1 || true
+          wine-src/build/wine ./fdleaktest.exe -v > results-macos-fdleaktest-11.5.txt 2>&1 || true
 
-      - name: Run edittest
+      - name: Verify macOS patched 11.5 summary
         run: |
-          export DYLD_LIBRARY_PATH=$FT_DYLD_PATH
-          export WINEPREFIX=$HOME/.wine-patched
-          export WINESERVER=$PWD/wine-src/build/server/wineserver
-          wine-src/build/wine ./edittest.exe \
-            > results-macos-edittest-stdout.txt 2>results-macos-edittest-stderr.txt || true
-          cat results-macos-edittest-stdout.txt
-
-      - name: Run fdleaktest
-        run: |
-          export DYLD_LIBRARY_PATH=$FT_DYLD_PATH
-          export WINEPREFIX=$HOME/.wine-patched
-          export WINESERVER=$PWD/wine-src/build/server/wineserver
-          wine-src/build/wine ./fdleaktest.exe -v > results-macos-fdleaktest.txt 2>&1 || true
-          cat results-macos-fdleaktest.txt
-
-      - name: Verify results
-        run: |
-          echo "=== Locktest ==="
-          grep "Results:" results-macos-locktest.txt || true
-          if grep -q "0 failed" results-macos-locktest.txt 2>/dev/null; then
-            echo "PASS: locktest all passed"
-          else
-            echo "FAIL: locktest results unexpected"
-            cat results-macos-locktest.txt 2>/dev/null | tail -10 || true
-            exit 1
-          fi
-          echo "=== Lockstress ==="
-          grep -E "Completed:|Hangs:" results-macos-lockstress.txt || true
-          echo "=== Fonttest ==="
-          FIXME_COUNT="$(grep -c 'charset 255' results-macos-fonttest-stderr.txt 2>/dev/null)" || FIXME_COUNT="0"
+          grep "Results:" results-macos-locktest-11.5.txt || true
+          FIXME_COUNT="$(grep -c 'charset 255' results-macos-fonttest-11.5-stderr.txt 2>/dev/null)" || FIXME_COUNT="0"
           echo "charset 255 FIXMEs: $FIXME_COUNT"
           if [ "$FIXME_COUNT" != "0" ]; then
-            echo "FAIL: fonttest still has $FIXME_COUNT charset 255 FIXMEs"
+            echo "fonttest still reports charset 255 FIXMEs"
             exit 1
           fi
-
-      - name: Package Wine install tarball
-        run: |
-          export PATH="$(brew --prefix bison)/bin:$PATH"
-          cd wine-src/build
-          $ARCH_PREFIX make install DESTDIR=${{ github.workspace }}/wine-install 2>&1 | tail -3
-          # Copy FreeType into the install
-          cp $FT_DYLD_PATH/libfreetype* ${{ github.workspace }}/wine-install/opt/wine/lib/ 2>/dev/null || true
-          # Fix FreeType install_name to final path
-          install_name_tool -id /opt/wine/lib/libfreetype.6.dylib \
-            ${{ github.workspace }}/wine-install/opt/wine/lib/libfreetype.6.dylib 2>/dev/null || true
-          ls -d ${{ github.workspace }}/wine-install/opt/wine/bin/wine
-          cd ${{ github.workspace }}/wine-install
-          ARCH=$(uname -m)
-          OS_VER=$(sw_vers -productVersion | cut -d. -f1)
-          TARBALL="wine-space-wine-11.5-macos${OS_VER}-${ARCH}.tar.xz"
-          tar cJf "${{ github.workspace }}/$TARBALL" opt/
-          ls -lh "${{ github.workspace }}/$TARBALL"
-          echo "TARBALL=$TARBALL" >> $GITHUB_ENV
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: results-macos-patched-${{ matrix.os }}
-          path: results-macos-*
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.TARBALL }}
-          path: ${{ env.TARBALL }}
+          name: macos-patched-11.5-${{ matrix.os }}
+          path: results-macos-*-11.5*

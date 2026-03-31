@@ -24,7 +24,7 @@ RUN git clone --depth 1 --branch wine-11.5 https://gitlab.winehq.org/wine/wine.g
 
 # Configure Wine (separate step for better error visibility)
 RUN mkdir -p wine-src/build && cd wine-src/build \
-    && ../configure --enable-archs=x86_64,i386 --with-mingw --prefix=/opt/wine
+    && ../configure --enable-archs=x86_64,i386 --with-mingw --prefix=/opt/wine-11.5
 
 # Build Wine (limit parallelism — QEMU emulation can segfault with too many jobs)
 RUN cd wine-src/build && make -j2 || make -j1
@@ -44,13 +44,13 @@ RUN dpkg --add-architecture i386 && apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Wine install from builder
-COPY --from=builder /opt/wine /opt/wine
+COPY --from=builder /opt/wine-11.5 /opt/wine-11.5
 
 # Copy test script
-COPY tests/twgs-headless-test.sh /test/
-RUN chmod +x /test/twgs-headless-test.sh
+COPY support/twgs/tests/headless-test.sh /test/
+RUN chmod +x /test/headless-test.sh
 
-ENV PATH="/opt/wine/bin:$PATH"
+ENV PATH="/opt/wine-11.5/bin:$PATH"
 
 # TWGS binary mounted at runtime via -v
 # Wine prefix mounted at runtime via -v or initialized fresh
@@ -58,4 +58,4 @@ VOLUME /twgs
 VOLUME /wineprefix
 
 WORKDIR /test
-CMD ["/test/twgs-headless-test.sh"]
+CMD ["/test/headless-test.sh"]

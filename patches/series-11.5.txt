@@ -1,0 +1,7 @@
+patches/ntdll-fix-NtLockFile-FIXMEs.patch
+patches/win32u-fix-OEM_CHARSET.patch
+patches/kernelbase-fix-UnlockFileEx.patch
+patches/user32-fix-edit-BuildLineDefs.patch
+patches/comctl32-fix-edit-BuildLineDefs.patch
+patches/wineserver-fix-lock-fd-leak.patch
+patches/kernel32-tests-expand-lockfile.patch

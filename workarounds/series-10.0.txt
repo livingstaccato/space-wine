@@ -1,0 +1,2 @@
+# Intentionally empty.
+# The Rosetta 2 workaround is maintained only for the 11.5 primary baseline.

@@ -1,27 +1,51 @@
 # space-wine Makefile
 #
+# Primary baseline:  wine-11.5
+# Backport baseline: wine-10.0
+#
 # Targets:
-#   make test-tools    — compile test .exe files (requires mingw-w64)
-#   make clone         — clone Wine 11.0 source
-#   make patch         — apply all patches to wine-src/
-#   make build         — configure + build patched Wine
-#   make test          — run all tests against patched Wine
-#   make prove         — full pipeline: clone, patch, build, test
-#   make clean         — remove build artifacts
+#   make test-tools                    — compile test .exe files (requires mingw-w64)
+#   make clone                         — clone the selected Wine source tag
+#   make patch                         — apply the versioned patch/workaround series
+#   make build                         — configure + build patched Wine
+#   make test                          — run standalone verification tools
+#   make prove                         — full pipeline: clone, patch, build, test
+#   make prove WINE_VERSION=10.0       — full backport pipeline for wine-10.0
+#
+# Versioned series:
+#   patches/series-11.5.txt
+#   patches/series-10.0.txt
 #
 # Variables (override on command line):
-#   WINE_SRC    — Wine source directory (default: wine-src)
-#   BUILD_DIR   — build output directory (default: $(WINE_SRC)/build)
-#   WINE_TAG    — Wine git tag to clone (default: wine-11.5)
-#   PREFIX      — Wine install prefix (default: /opt/wine)
-#   NCPU        — parallel build jobs (auto-detected)
+#   WINE_VERSION — supported values: 11.5 (default), 10.0
+#   WINE_TAG     — explicit upstream tag (default: wine-$(WINE_VERSION))
+#   WINE_SRC     — Wine source directory (default: wine-src-$(WINE_VERSION))
+#   BUILD_DIR    — build output directory (default: $(WINE_SRC)/build)
+#   PREFIX       — install prefix (default: /opt/wine-$(WINE_VERSION))
+#   NCPU         — parallel build jobs (auto-detected)
 
-WINE_TAG    ?= wine-11.5
-WINE_SRC    ?= wine-src
-BUILD_DIR   ?= $(WINE_SRC)/build
-PREFIX      ?= /opt/wine
-NCPU        ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
-MINGW_GCC   ?= x86_64-w64-mingw32-gcc
+SUPPORTED_WINE_VERSIONS := 10.0 11.5
+WINE_VERSION ?= 11.5
+WINE_TAG ?= wine-$(WINE_VERSION)
+WINE_SRC ?= wine-src-$(WINE_VERSION)
+BUILD_DIR ?= $(WINE_SRC)/build
+PREFIX ?= /opt/wine-$(WINE_VERSION)
+NCPU ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
+MINGW_GCC ?= x86_64-w64-mingw32-gcc
+PATCH_SERIES := patches/series-$(WINE_VERSION).txt
+WORKAROUND_SERIES := workarounds/series-$(WINE_VERSION).txt
+MACOS_FREETYPE_PREFIX ?= $(PREFIX)
+MACOS_FREETYPE_INCLUDEDIR ?= $(MACOS_FREETYPE_PREFIX)/include/freetype2
+MACOS_FREETYPE_LIBDIR ?= $(MACOS_FREETYPE_PREFIX)/lib
+MACOS_FREETYPE_LIB ?= $(MACOS_FREETYPE_LIBDIR)/libfreetype.6.dylib
+MACOS_FREETYPE_STAGE_PREFIX ?= /tmp/freetype-x86
+MACOS_FREETYPE_STAGE_LIBDIR ?= $(MACOS_FREETYPE_STAGE_PREFIX)/lib
+MACOS_FREETYPE_STAGE_LIB ?= $(MACOS_FREETYPE_STAGE_LIBDIR)/libfreetype.6.dylib
+MACOS_FREETYPE_STAGE_INCLUDE ?= $(MACOS_FREETYPE_STAGE_PREFIX)/include/freetype2
+
+ifeq ($(filter $(WINE_VERSION),$(SUPPORTED_WINE_VERSIONS)),)
+$(error Unsupported WINE_VERSION '$(WINE_VERSION)'; supported values: $(SUPPORTED_WINE_VERSIONS))
+endif
 
 # Detect platform
 UNAME_S := $(shell uname -s)
@@ -34,56 +58,43 @@ ifeq ($(UNAME_S),Darwin)
   endif
 endif
 
-# Patches — upstream-submittable bug fixes (applied in order)
-PATCHES := \
-	patches/ntdll-fix-NtLockFile-FIXMEs.patch \
-	patches/win32u-fix-OEM_CHARSET.patch \
-	patches/kernelbase-fix-UnlockFileEx.patch \
-	patches/user32-fix-edit-BuildLineDefs.patch \
-	patches/comctl32-fix-edit-BuildLineDefs.patch \
-	patches/wineserver-fix-lock-fd-leak.patch \
-	patches/kernel32-tests-expand-lockfile.patch
-
-# Workarounds — platform-specific hacks not suitable for upstream
-WORKAROUNDS := \
-	workarounds/wow64cpu-rosetta2-workaround.patch
-
 # Test executables
 TEST_EXES := build/locktest.exe build/lockstress.exe build/fonttest.exe build/edittest.exe build/fdleaktest.exe
 
-.PHONY: all prove clone patch build test test-tools install clean help
+.PHONY: all prove clone patch build test test-tools install clean help build-dir macos-freetype-prefix
 
 all: prove
 
 help:
 	@echo "Targets:"
-	@echo "  make prove       — full pipeline: clone, patch, build, test"
-	@echo "  make test-tools  — compile test .exe files"
-	@echo "  make clone       — clone Wine $(WINE_TAG) source"
-	@echo "  make patch       — apply all patches to $(WINE_SRC)/"
-	@echo "  make build       — configure + build patched Wine"
-	@echo "  make test        — run tests against patched Wine"
-	@echo "  make install     — install to $(PREFIX)"
-	@echo "  make clean       — remove build artifacts"
+	@echo "  make prove                         — full pipeline for wine-$(WINE_VERSION)"
+	@echo "  make prove WINE_VERSION=10.0       — full pipeline for the wine-10.0 backport"
+	@echo "  make test-tools                    — compile test .exe files"
+	@echo "  make clone                         — clone Wine $(WINE_TAG) source"
+	@echo "  make patch                         — apply $(PATCH_SERIES) and $(WORKAROUND_SERIES)"
+	@echo "  make build                         — configure + build patched Wine"
+	@echo "  make test                          — run tests against patched Wine"
+	@echo "  make install                       — install to $(PREFIX)"
+	@echo "  make clean                         — remove build artifacts for $(WINE_VERSION)"
 
 # ── Test tool compilation ─────────────────────────────────────────
 
-build/locktest.exe: tests/locktest.c | build
+build/locktest.exe: tests/locktest.c | build-dir
 	$(MINGW_GCC) -o $@ $< -lntdll
 
-build/lockstress.exe: tests/lockstress.c | build
+build/lockstress.exe: tests/lockstress.c | build-dir
 	$(MINGW_GCC) -o $@ $<
 
-build/fonttest.exe: tests/fonttest.c | build
+build/fonttest.exe: tests/fonttest.c | build-dir
 	$(MINGW_GCC) -o $@ $< -lgdi32 -luser32
 
-build/edittest.exe: tests/edittest.c | build
+build/edittest.exe: tests/edittest.c | build-dir
 	$(MINGW_GCC) -o $@ $< -lgdi32 -luser32
 
-build/fdleaktest.exe: tests/fdleaktest.c | build
+build/fdleaktest.exe: tests/fdleaktest.c | build-dir
 	$(MINGW_GCC) -o $@ $<
 
-build:
+build-dir:
 	mkdir -p build
 
 test-tools: $(TEST_EXES)
@@ -97,22 +108,38 @@ $(WINE_SRC)/.git:
 
 # ── Apply patches ─────────────────────────────────────────────────
 
-.patch-applied: $(PATCHES) $(WORKAROUNDS) | $(WINE_SRC)/.git
-	cd $(WINE_SRC) && for p in $(addprefix ../,$(PATCHES) $(WORKAROUNDS)); do git apply "$$p"; done
-	touch .patch-applied
+.patch-applied-$(WINE_VERSION): $(PATCH_SERIES) $(WORKAROUND_SERIES) tools/apply-series.sh | $(WINE_SRC)/.git
+	./tools/apply-series.sh "$(WINE_SRC)" "$(PATCH_SERIES)" "$(WORKAROUND_SERIES)"
+	touch $@
 
-patch: .patch-applied
+patch: .patch-applied-$(WINE_VERSION)
 
 # ── Configure + Build ─────────────────────────────────────────────
 
-$(BUILD_DIR)/Makefile: .patch-applied
+macos-freetype-prefix:
+ifeq ($(UNAME_S),Darwin)
+	@if [ -f "$(MACOS_FREETYPE_LIB)" ]; then \
+		exit 0; \
+	fi
+	@test -f "$(MACOS_FREETYPE_STAGE_LIB)" || { \
+		echo "missing $(MACOS_FREETYPE_STAGE_LIB); install x86_64 FreeType into $(MACOS_FREETYPE_PREFIX) or stage it under /tmp/freetype-x86"; \
+		exit 1; \
+	}
+	mkdir -p "$(MACOS_FREETYPE_LIBDIR)" "$(MACOS_FREETYPE_INCLUDEDIR)"
+	cp -R "$(MACOS_FREETYPE_STAGE_LIBDIR)/." "$(MACOS_FREETYPE_LIBDIR)/"
+	cp -R "$(MACOS_FREETYPE_STAGE_INCLUDE)/." "$(MACOS_FREETYPE_INCLUDEDIR)/"
+else
+	@true
+endif
+
+$(BUILD_DIR)/Makefile: .patch-applied-$(WINE_VERSION) macos-freetype-prefix
 	mkdir -p $(BUILD_DIR)
 ifeq ($(UNAME_S),Darwin)
 	cd $(BUILD_DIR) && PATH="/opt/homebrew/opt/bison/bin:$(PATH)" $(ARCH_PREFIX) ../configure \
 		--enable-archs=x86_64,i386 --with-mingw --prefix=$(PREFIX) \
 		CC="clang -arch x86_64" CXX="clang++ -arch x86_64" \
-		FREETYPE_CFLAGS="-I/tmp/freetype-x86/include/freetype2" \
-		FREETYPE_LIBS="-L/tmp/freetype-x86/lib -lfreetype"
+		FREETYPE_CFLAGS="-I$(MACOS_FREETYPE_INCLUDEDIR)" \
+		FREETYPE_LIBS="-L$(MACOS_FREETYPE_LIBDIR) -lfreetype"
 else
 	cd $(BUILD_DIR) && ../configure \
 		--enable-archs=x86_64,i386 --with-mingw --prefix=$(PREFIX)
@@ -130,64 +157,55 @@ build: $(BUILD_DIR)/server/wineserver
 # ── Install ───────────────────────────────────────────────────────
 
 install: $(BUILD_DIR)/server/wineserver
-	WINEPREFIX=$(CURDIR)/build/.wine-test $(WINESERVER) -k 2>/dev/null || true
+	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) $(WINESERVER) -k 2>/dev/null || true
 	sleep 1
 	cd $(BUILD_DIR) && $(ARCH_PREFIX) make install
-ifeq ($(UNAME_S),Darwin)
-	cp /tmp/freetype-x86/lib/libfreetype.6.dylib $(PREFIX)/lib/
-endif
-	@echo "Installed to $(PREFIX)"
+	@echo "Installed $(WINE_TAG) to $(PREFIX)"
 
 # ── Run tests ─────────────────────────────────────────────────────
 
-WINE_CMD    := $(BUILD_DIR)/wine
-WINESERVER  := $(BUILD_DIR)/server/wineserver
-RESULTS_DIR := build/results
+WINE_CMD := $(BUILD_DIR)/wine
+WINESERVER := $(BUILD_DIR)/server/wineserver
+RESULTS_DIR := build/results/$(WINE_VERSION)
 
 test: $(TEST_EXES) $(BUILD_DIR)/server/wineserver
 	@mkdir -p $(RESULTS_DIR)
 	@echo ""
 	@echo "============================================================"
-	@echo "  Running tests (patched Wine)"
+	@echo "  Running tests (patched $(WINE_TAG))"
 	@echo "============================================================"
 	@echo ""
-	@# Init prefix
-	WINEPREFIX=$(CURDIR)/build/.wine-test WINESERVER=$(WINESERVER) \
+	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) \
 		$(WINE_CMD) wineboot --init 2>/dev/null || true
 	@sleep 3
-	@# locktest
 	@echo "--- locktest ---"
-	WINEPREFIX=$(CURDIR)/build/.wine-test WINESERVER=$(WINESERVER) \
+	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) \
 		$(WINE_CMD) ./build/locktest.exe -v 2>/dev/null \
 		| tee $(RESULTS_DIR)/locktest.txt | grep -E "Results:|FAIL" || true
 	@echo ""
-	@# lockstress
 	@echo "--- lockstress ---"
-	WINEPREFIX=$(CURDIR)/build/.wine-test WINESERVER=$(WINESERVER) \
+	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) \
 		timeout 30 $(WINE_CMD) ./build/lockstress.exe 2>/dev/null \
 		| tee $(RESULTS_DIR)/lockstress.txt | grep -E "Completed:|Hangs:|Time:" || true
 	@echo ""
-	@# fonttest
 	@echo "--- fonttest ---"
-	WINEPREFIX=$(CURDIR)/build/.wine-test WINESERVER=$(WINESERVER) \
+	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) \
 		WINEDEBUG=fixme+font $(WINE_CMD) ./build/fonttest.exe \
 		>$(RESULTS_DIR)/fonttest-stdout.txt 2>$(RESULTS_DIR)/fonttest-stderr.txt || true
 	@cat $(RESULTS_DIR)/fonttest-stdout.txt
 	@FIXME_COUNT=$$(grep -c 'charset 255' $(RESULTS_DIR)/fonttest-stderr.txt 2>/dev/null || echo 0); \
 		echo "charset 255 FIXMEs: $$FIXME_COUNT"
 	@echo ""
-	@# edittest
 	@echo "--- edittest ---"
-	WINEPREFIX=$(CURDIR)/build/.wine-test WINESERVER=$(WINESERVER) \
+	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) \
 		$(WINE_CMD) ./build/edittest.exe \
 		>$(RESULTS_DIR)/edittest-stdout.txt 2>$(RESULTS_DIR)/edittest-stderr.txt || true
 	@cat $(RESULTS_DIR)/edittest-stdout.txt
 	@EDIT_FIXMES=$$(grep -c 'EDIT_BuildLineDefs_ML' $(RESULTS_DIR)/edittest-stderr.txt 2>/dev/null || echo 0); \
 		echo "EDIT_BuildLineDefs_ML FIXMEs: $$EDIT_FIXMES"
 	@echo ""
-	@# fdleaktest
 	@echo "--- fdleaktest ---"
-	WINEPREFIX=$(CURDIR)/build/.wine-test WINESERVER=$(WINESERVER) \
+	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) \
 		$(WINE_CMD) ./build/fdleaktest.exe -v 2>/dev/null \
 		| tee $(RESULTS_DIR)/fdleaktest.txt | grep -E "Results:|FAIL|All tests" || true
 	@echo ""
@@ -200,8 +218,8 @@ prove: clone patch test-tools build test
 # ── Clean ─────────────────────────────────────────────────────────
 
 clean:
-	rm -rf build/ .patch-applied
-	@echo "Cleaned build artifacts. Run 'make clean-all' to also remove wine-src/."
+	rm -rf build/ .patch-applied-$(WINE_VERSION)
+	@echo "Cleaned build artifacts for $(WINE_VERSION). Run 'make clean-all WINE_VERSION=$(WINE_VERSION)' to remove $(WINE_SRC)."
 
 clean-all: clean
 	rm -rf $(WINE_SRC)

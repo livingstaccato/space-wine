@@ -7,7 +7,7 @@ Wine uses the native Mac display driver. No virtual framebuffer needed. The GUI 
 ```bash
 # In a tmux/screen session (detachable)
 tmux new-session -d -s twgs \
-  'DYLD_LIBRARY_PATH=/opt/wine/lib WINEPREFIX=~/.wine /opt/wine/bin/wine ~/.wine/drive_c/TWGS/twgs.exe'
+  'DYLD_LIBRARY_PATH=/opt/wine-11.5/lib WINEPREFIX=~/.wine /opt/wine-11.5/bin/wine ~/.wine/drive_c/TWGS/twgs.exe'
 
 # Reattach
 tmux attach -t twgs
