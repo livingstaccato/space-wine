@@ -56,6 +56,7 @@ ifeq ($(UNAME_S),Darwin)
   ifeq ($(UNAME_M),arm64)
     ARCH_PREFIX := arch -x86_64
   endif
+  DYLD_ENV := DYLD_LIBRARY_PATH=$(MACOS_FREETYPE_LIBDIR)
 endif
 
 # Test executables
@@ -175,21 +176,21 @@ test: $(TEST_EXES) $(BUILD_DIR)/server/wineserver
 	@echo "  Running tests (patched $(WINE_TAG))"
 	@echo "============================================================"
 	@echo ""
-	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) \
+	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) $(DYLD_ENV) \
 		$(WINE_CMD) wineboot --init 2>/dev/null || true
 	@sleep 3
 	@echo "--- locktest ---"
-	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) \
+	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) $(DYLD_ENV) \
 		$(WINE_CMD) ./build/locktest.exe -v 2>/dev/null \
 		| tee $(RESULTS_DIR)/locktest.txt | grep -E "Results:|FAIL" || true
 	@echo ""
 	@echo "--- lockstress ---"
-	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) \
+	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) $(DYLD_ENV) \
 		timeout 30 $(WINE_CMD) ./build/lockstress.exe 2>/dev/null \
 		| tee $(RESULTS_DIR)/lockstress.txt | grep -E "Completed:|Hangs:|Time:" || true
 	@echo ""
 	@echo "--- fonttest ---"
-	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) \
+	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) $(DYLD_ENV) \
 		WINEDEBUG=fixme+font $(WINE_CMD) ./build/fonttest.exe \
 		>$(RESULTS_DIR)/fonttest-stdout.txt 2>$(RESULTS_DIR)/fonttest-stderr.txt || true
 	@cat $(RESULTS_DIR)/fonttest-stdout.txt
@@ -197,7 +198,7 @@ test: $(TEST_EXES) $(BUILD_DIR)/server/wineserver
 		echo "charset 255 FIXMEs: $$FIXME_COUNT"
 	@echo ""
 	@echo "--- edittest ---"
-	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) \
+	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) $(DYLD_ENV) \
 		$(WINE_CMD) ./build/edittest.exe \
 		>$(RESULTS_DIR)/edittest-stdout.txt 2>$(RESULTS_DIR)/edittest-stderr.txt || true
 	@cat $(RESULTS_DIR)/edittest-stdout.txt
@@ -205,7 +206,7 @@ test: $(TEST_EXES) $(BUILD_DIR)/server/wineserver
 		echo "EDIT_BuildLineDefs_ML FIXMEs: $$EDIT_FIXMES"
 	@echo ""
 	@echo "--- fdleaktest ---"
-	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) \
+	WINEPREFIX=$(CURDIR)/build/.wine-$(WINE_VERSION) WINESERVER=$(WINESERVER) $(DYLD_ENV) \
 		$(WINE_CMD) ./build/fdleaktest.exe -v 2>/dev/null \
 		| tee $(RESULTS_DIR)/fdleaktest.txt | grep -E "Results:|FAIL|All tests" || true
 	@echo ""
