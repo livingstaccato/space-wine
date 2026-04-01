@@ -2,15 +2,15 @@
 
 ## What This Repository Is
 
-Versioned Wine patch tracks with deterministic standalone verification.
+Upstream-first Wine patch tracks with deterministic standalone verification.
 
 Supported baselines:
 
 - `wine-11.5` — primary baseline
 - `wine-10.0` — backport baseline
 
-This repository is organized around upstream-candidate patches, a local macOS
-workaround, and cross-platform CI evidence.
+This repository is organized around subsystem review, deterministic tests, a local
+macOS workaround, and cross-platform CI evidence.
 
 ## Critical Rules
 
@@ -19,6 +19,8 @@ workaround, and cross-platform CI evidence.
 - Keep `11.5` as the source-of-truth line unless the user explicitly asks otherwise.
 - Keep `10.0` support versioned through backports or explicit exclusions.
 - Do not present application-specific collateral as the primary review evidence.
+- Prefer subsystem-and-behavior patch titles over local symptom labels.
+- Treat `UPSTREAMING.md` and `patches/README.md` as the primary reviewer docs.
 
 ## Patch Tracks
 

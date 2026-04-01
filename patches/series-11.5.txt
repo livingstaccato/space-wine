@@ -1,7 +1,7 @@
-patches/ntdll-fix-NtLockFile-FIXMEs.patch
-patches/win32u-fix-OEM_CHARSET.patch
-patches/kernelbase-fix-UnlockFileEx.patch
-patches/user32-fix-edit-BuildLineDefs.patch
-patches/comctl32-fix-edit-BuildLineDefs.patch
-patches/wineserver-fix-lock-fd-leak.patch
-patches/kernel32-tests-expand-lockfile.patch
+patches/ntdll-complete-contested-lock-requests.patch
+patches/win32u-map-oem-charset.patch
+patches/kernelbase-signal-unlockfileex-events.patch
+patches/user32-rebuild-stale-multiline-edit-lines.patch
+patches/comctl32-rebuild-stale-multiline-edit-lines.patch
+patches/wineserver-close-released-lock-fds.patch
+patches/kernel32-tests-expand-locking-coverage.patch

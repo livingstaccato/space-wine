@@ -1,14 +1,14 @@
-# Patch Catalog
+# Patch Queue
 
-This repository maintains two versioned patch tracks:
+This directory is the primary reviewer-facing queue for upstream-candidate Wine work.
 
-- `wine-11.5`: primary baseline
-- `wine-10.0`: backport baseline
+Tracked baselines:
 
-Patch categories:
+- `wine-11.5`: primary implementation line
+- `wine-10.0`: backport line
 
-- **Upstream candidates** live under `patches/`
-- **Local-only workarounds** live under `workarounds/`
+Local-only workarounds are kept separately under
+[`workarounds/`](/Users/tim/code/gh/livingstaccato/space-wine/.worktrees/codex/review-ready/workarounds).
 
 Series manifests:
 
@@ -17,15 +17,26 @@ Series manifests:
 - [`workarounds/series-11.5.txt`](/Users/tim/code/gh/livingstaccato/space-wine/.worktrees/codex/review-ready/workarounds/series-11.5.txt)
 - [`workarounds/series-10.0.txt`](/Users/tim/code/gh/livingstaccato/space-wine/.worktrees/codex/review-ready/workarounds/series-10.0.txt)
 
-## Applicability Matrix
+## Patch Status
 
-| Patch | 11.5 | 10.0 | Notes |
-|---|---|---|---|
-| `ntdll-fix-NtLockFile-FIXMEs.patch` | Native patch | Backport variant | `10.0` uses an older `NtUnlockFile` shape, so it has a dedicated backport patch. |
-| `kernelbase-fix-UnlockFileEx.patch` | Native patch | Same patch | Applies unchanged. |
-| `win32u-fix-OEM_CHARSET.patch` | Native patch | Same patch | Applies unchanged. |
-| `user32-fix-edit-BuildLineDefs.patch` | Native patch | Same patch | Applies unchanged. |
-| `comctl32-fix-edit-BuildLineDefs.patch` | Native patch | Not applicable | `dlls/comctl32_v6/edit.c` is not present in `wine-10.0`. |
-| `wineserver-fix-lock-fd-leak.patch` | Native patch | Same patch | Applies unchanged. |
-| `kernel32-tests-expand-lockfile.patch` | Native patch | Same patch | Applies unchanged. |
-| `wow64cpu-rosetta2-workaround.patch` | Local-only workaround | Not maintained | The Rosetta workaround is kept only on the `11.5` primary macOS line. |
+| Patch | Subsystem | 11.5 | 10.0 | Upstream status | Deterministic coverage |
+|---|---|---|---|---|---|
+| `ntdll-complete-contested-lock-requests.patch` | `ntdll` | native patch | dedicated backport | needs stronger evidence | `locktest`, `lockstress` |
+| `kernelbase-signal-unlockfileex-events.patch` | `kernelbase` | native patch | same patch | ready | `kernel32/tests`, `locktest` |
+| `win32u-map-oem-charset.patch` | `win32u` | native patch | same patch | ready | `fonttest` |
+| `user32-rebuild-stale-multiline-edit-lines.patch` | `user32` | native patch | same patch | needs stronger evidence | `edittest` |
+| `comctl32-rebuild-stale-multiline-edit-lines.patch` | `comctl32_v6` | native patch | not applicable | needs split | `edittest` |
+| `wineserver-close-released-lock-fds.patch` | `server` | native patch | same patch | ready | `fdleaktest` |
+| `kernel32-tests-expand-locking-coverage.patch` | `kernel32/tests` | native patch | same patch | ready | Wine test suite |
+
+Status meanings:
+
+- `ready`: already shaped like a Wine subsystem patch
+- `needs split`: should be divided before upstream submission
+- `needs stronger evidence`: deterministic coverage exists, but native-behavior proof or narrower tests should be improved
+
+## Applicability Notes
+
+- `ntdll` uses a dedicated `10.0` backport because the older tree has a different `NtUnlockFile` shape.
+- `comctl32_v6` is `11.5`-only because `dlls/comctl32_v6/edit.c` is absent in `wine-10.0`.
+- The Rosetta workaround is intentionally excluded from this queue and remains local-only.

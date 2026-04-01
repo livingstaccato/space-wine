@@ -1,5 +1,11 @@
 # Design Tradeoffs
 
+This file records implementation tradeoffs that may matter during upstream review.
+It is not part of the primary repo introduction; use
+[`README.md`](/Users/tim/code/gh/livingstaccato/space-wine/.worktrees/codex/review-ready/README.md)
+and [`UPSTREAMING.md`](/Users/tim/code/gh/livingstaccato/space-wine/.worktrees/codex/review-ready/UPSTREAMING.md)
+for the main review path.
+
 ## Contested Overlapped Locks: Blocking vs True Async
 
 ### Windows behavior

@@ -2,69 +2,78 @@
 
 [![Verify Wine Patch Matrix](https://github.com/livingstaccato/space-wine/actions/workflows/prove.yml/badge.svg)](https://github.com/livingstaccato/space-wine/actions/workflows/prove.yml)
 
-`space-wine` is a versioned Wine patchset with deterministic standalone verification.
-It is organized for code review, upstream discussion, and reproducible CI rather than
-for any single application.
+`space-wine` is an upstream-first Wine patch queue with deterministic standalone
+verification. The repository is organized to make subsystem review, revision rounds,
+and cross-version evidence easy for Wine maintainers to evaluate.
 
-## Supported Baselines
+## Baselines and Scope
 
 | Role | Upstream tag | Default install prefix | CI scope |
 |---|---|---|---|
 | Primary baseline | `wine-11.5` | `/opt/wine-11.5` | Windows ground truth, Linux patched/unpatched, macOS patched |
 | Backport baseline | `wine-10.0` | `/opt/wine-10.0` | Windows ground truth, Linux patched/unpatched |
 
-The earlier `11.x` baseline is no longer a supported review target.
+There is no earlier maintained `11.x` review target. `11.5` is the only primary line
+in scope.
 
-## Patch Categories
+## Upstream Submission Surface
 
-### upstream candidates
+Primary reviewer-facing paths:
 
-These patches are organized under [`patches/README.md`](/Users/tim/code/gh/livingstaccato/space-wine/.worktrees/codex/review-ready/patches/README.md) and applied by versioned series manifests:
+- [`patches/README.md`](/Users/tim/code/gh/livingstaccato/space-wine/.worktrees/codex/review-ready/patches/README.md): subsystem queue and status table
+- [`UPSTREAMING.md`](/Users/tim/code/gh/livingstaccato/space-wine/.worktrees/codex/review-ready/UPSTREAMING.md): expected Wine review flow and submission rules
+- [`BUILDING.md`](/Users/tim/code/gh/livingstaccato/space-wine/.worktrees/codex/review-ready/BUILDING.md): baseline-specific build instructions
+- [`tests/`](/Users/tim/code/gh/livingstaccato/space-wine/.worktrees/codex/review-ready/tests): standalone verification tools
 
-- `ntdll-fix-NtLockFile-FIXMEs.patch`
-- `kernelbase-fix-UnlockFileEx.patch`
-- `win32u-fix-OEM_CHARSET.patch`
-- `user32-fix-edit-BuildLineDefs.patch`
-- `comctl32-fix-edit-BuildLineDefs.patch`
-- `wineserver-fix-lock-fd-leak.patch`
-- `kernel32-tests-expand-lockfile.patch`
+Secondary material remains under [`support/`](/Users/tim/code/gh/livingstaccato/space-wine/.worktrees/codex/review-ready/support), but it is not part of the primary upstream case.
 
-### local-only workaround
+## Patch Groups
 
-- `wow64cpu-rosetta2-workaround.patch`
+### Upstream candidates
 
-This workaround is intentionally maintained only on the `wine-11.5` macOS line.
+- `ntdll`: contested file-lock completion
+- `kernelbase`: `UnlockFileEx` event completion
+- `win32u`: OEM charset mapping
+- `user32`: stale multiline edit line-list rebuild
+- `comctl32_v6`: stale multiline edit line-list rebuild
+- `wineserver`: released lock FD cleanup
+- `kernel32/tests`: lock and unlock coverage expansion
 
-## Version Applicability
+### Local-only workarounds
 
-| Patch area | 11.5 | 10.0 |
-|---|---|---|
-| `ntdll` file locking fixes | native patch | dedicated backport patch |
-| `kernelbase` unlock fix | native patch | same patch |
-| `win32u` OEM charset fix | native patch | same patch |
-| `user32` edit fix | native patch | same patch |
-| `comctl32_v6` edit fix | native patch | not applicable |
-| `wineserver` FD leak fix | native patch | same patch |
-| `kernel32` lock tests | native patch | same patch |
-| `wow64cpu` Rosetta workaround | local-only | not maintained |
+- `wow64cpu`: Rosetta 2 workaround for the macOS `11.5` line only
 
-## Verification Model
+## Review Status Model
 
-The repository is intentionally built around repeatable evidence:
+Every queued patch is classified in [`patches/README.md`](/Users/tim/code/gh/livingstaccato/space-wine/.worktrees/codex/review-ready/patches/README.md) with:
 
-- **Windows ground truth**: standalone tools run on real Windows kernels
-- **Linux patched/unpatched comparison**: explicit `wine-10.0` and `wine-11.5` matrix
-- **macOS patched verification**: primary `wine-11.5` deployment path
+- subsystem
+- baseline applicability
+- upstream status
+- deterministic test coverage
 
-Standalone verification tools:
+Status values:
+
+- `ready`: suitable for subsystem review as-is
+- `needs split`: behavior is promising but should be divided before review
+- `needs stronger evidence`: deterministic tests/native comparison should be improved
+- `backport only`: carried only to keep the `10.0` line aligned
+- `local-only`: not intended for upstream submission
+
+## Verification Contract
+
+- Windows ground truth runs the standalone tools on real Windows kernels.
+- Linux CI compares patched and unpatched `10.0` and `11.5`.
+- macOS CI validates the patched `11.5` line.
+- Local verification writes generated output under [`build/results/`](/Users/tim/code/gh/livingstaccato/space-wine/.worktrees/codex/review-ready/build/results).
+
+Standalone tools:
 
 - `locktest.exe`: parameter handling, APC, IOCP, and lock semantics
-- `lockstress.exe`: contested overlapped lock stress
-- `fonttest.exe`: OEM charset regression check
-- `edittest.exe`: edit-control stability check
-- `fdleaktest.exe`: contested lock leak regression check
-
-The main review path does not depend on application-specific evidence.
+- `lockstress.exe`: contested overlapped lock completion
+- `fonttest.exe`: OEM charset regression coverage
+- `edittest.exe`: multiline edit-control stability
+- `fdleaktest.exe`: released lock FD regression coverage
 
 ## Quick Start
 
@@ -79,38 +88,22 @@ make prove WINE_VERSION=10.0
 The Makefile clones the selected upstream tag, applies the appropriate patch and
 workaround series, builds Wine, and runs the standalone verification suite.
 
-## Build and Install
-
-```bash
-# Build and install the primary baseline
-make build install
-
-# Build and install the backport baseline
-make build install WINE_VERSION=10.0
-```
-
-Default install prefixes:
-
-- `wine-11.5` → `/opt/wine-11.5`
-- `wine-10.0` → `/opt/wine-10.0`
-
-See [`BUILDING.md`](/Users/tim/code/gh/livingstaccato/space-wine/.worktrees/codex/review-ready/BUILDING.md) for the macOS build notes and version-specific prefix guidance.
-
 ## Repository Layout
 
 ```text
-patches/                 upstream-candidate patch tracks and series manifests
+patches/                 upstream-candidate patch queue and series manifests
 workarounds/             local-only workaround series
-tests/                   standalone verification tools
-results/                 captured generic before/after test output
-support/twgs/            optional application-specific collateral
+tests/                   deterministic standalone verification tools
 tools/                   patch-series helper scripts
-.github/workflows/       cross-platform verification matrix
+.github/workflows/       cross-platform CI matrix
+support/                 archival, non-primary collateral
+results/                 generated-output note only
 ```
 
 ## Notes for Reviewers
 
 - The primary implementation line is `wine-11.5`.
 - The backport line is `wine-10.0`.
-- Earlier `11.x` references were removed from the maintained review surface.
-- `support/twgs/` remains available as secondary collateral, but it is not part of the main technical case for these patches.
+- The patch queue is intentionally structured around subsystem review and revision rounds.
+- Local-only workarounds are separated from upstream candidates.
+- Application-specific collateral is archival and not required to evaluate the fixes.

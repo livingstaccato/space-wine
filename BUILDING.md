@@ -1,11 +1,12 @@
-# Building Wine Baselines
+# Building Reviewer Baselines
 
-This repository supports two tracked build targets:
+This repository exposes two reviewer-visible Wine baselines:
 
 - `wine-11.5` → `/opt/wine-11.5`
 - `wine-10.0` → `/opt/wine-10.0`
 
-The primary baseline is `11.5`. The `10.0` line is maintained as a backport.
+Use this file only for baseline build instructions. Submission guidance lives in
+[`UPSTREAMING.md`](/Users/tim/code/gh/livingstaccato/space-wine/.worktrees/codex/review-ready/UPSTREAMING.md).
 
 ## Common Commands
 

@@ -15,12 +15,12 @@ WORKDIR /build
 COPY patches/ /build/patches/
 RUN git clone --depth 1 --branch wine-11.5 https://gitlab.winehq.org/wine/wine.git wine-src \
     && cd wine-src \
-    && git apply /build/patches/ntdll-fix-NtLockFile-FIXMEs.patch \
-    && git apply /build/patches/win32u-fix-OEM_CHARSET.patch \
-    && git apply /build/patches/kernelbase-fix-UnlockFileEx.patch \
-    && git apply /build/patches/user32-fix-edit-BuildLineDefs.patch \
-    && git apply /build/patches/comctl32-fix-edit-BuildLineDefs.patch \
-    && git apply /build/patches/kernel32-tests-expand-lockfile.patch
+    && git apply /build/patches/ntdll-complete-contested-lock-requests.patch \
+    && git apply /build/patches/win32u-map-oem-charset.patch \
+    && git apply /build/patches/kernelbase-signal-unlockfileex-events.patch \
+    && git apply /build/patches/user32-rebuild-stale-multiline-edit-lines.patch \
+    && git apply /build/patches/comctl32-rebuild-stale-multiline-edit-lines.patch \
+    && git apply /build/patches/kernel32-tests-expand-locking-coverage.patch
 
 # Configure Wine (separate step for better error visibility)
 RUN mkdir -p wine-src/build && cd wine-src/build \
