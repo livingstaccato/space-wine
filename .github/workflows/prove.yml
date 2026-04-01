@@ -21,7 +21,7 @@ jobs:
       matrix:
         os: [windows-2022, windows-2025]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install MinGW
         run: choco install mingw -y
@@ -81,7 +81,7 @@ jobs:
         os: [ubuntu-22.04, ubuntu-24.04]
         version: ["10.0", "11.5"]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Linux build deps
         run: |
@@ -143,7 +143,7 @@ jobs:
         os: [ubuntu-22.04, ubuntu-24.04]
         version: ["10.0", "11.5"]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Linux build deps
         run: |
@@ -236,7 +236,7 @@ jobs:
       matrix:
         os: [macos-14, macos-15]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install macOS build deps
         run: |
